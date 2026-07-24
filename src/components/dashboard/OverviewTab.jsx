@@ -1,113 +1,144 @@
-import React, { useState } from 'react'
-import { Package, TrendingUp, AlertTriangle, AlertCircle, BarChart2 } from 'lucide-react'
+import React from 'react'
+import { Package, Layers, TrendingUp, AlertTriangle, XCircle, DollarSign, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 
-export const OverviewTab = ({ items, suppliers, totalItemsCount, totalValuation, lowStockCount, outOfStockCount, uniqueCategories, userRole }) => {
-  const [hoveredCat, setHoveredCat] = useState(null)
-
+export const OverviewTab = ({
+  items = [],
+  transactions = [],
+  suppliers = [],
+  totalItemsCount = 0,
+  totalValuation = 0,
+  lowStockCount = 0,
+  outOfStockCount = 0,
+  uniqueCategories = []
+}) => {
   return (
     <div className="space-y-6">
+      {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/85 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Jenis Produk</p>
-            <p className="text-2xl font-bold text-slate-900">{totalItemsCount}</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Produk</p>
+            <h3 className="text-2xl font-extrabold text-slate-900">{totalItemsCount}</h3>
+            <p className="text-xs text-slate-400">Jenis barang di gudang</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+          <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
             <Package className="w-6 h-6" />
           </div>
         </div>
-        
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/85 shadow-sm flex items-center justify-between">
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Valuasi Aset Gudang</p>
-            <p className="text-lg font-bold text-emerald-600">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Valuasi Aset</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900">
               Rp {totalValuation.toLocaleString('id-ID')}
-            </p>
+            </h3>
+            <p className="text-xs text-slate-400">Total nilai inventori</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-            <TrendingUp className="w-6 h-6" />
+          <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
+            <DollarSign className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/85 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stok Menipis (&lt; 2)</p>
-            <p className={`text-2xl font-bold ${lowStockCount > 0 ? 'text-amber-600' : 'text-slate-800'}`}>
-              {lowStockCount} Item
-            </p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stok Menipis</p>
+            <h3 className="text-2xl font-extrabold text-amber-600">{lowStockCount}</h3>
+            <p className="text-xs text-slate-400">Stok kurang dari 2 unit</p>
           </div>
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${lowStockCount > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
+          <div className="p-3 bg-amber-50 rounded-xl text-amber-600">
             <AlertTriangle className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/85 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stok Habis (0)</p>
-            <p className={`text-2xl font-bold ${outOfStockCount > 0 ? 'text-red-600' : 'text-slate-800'}`}>
-              {outOfStockCount} Item
-            </p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stok Habis</p>
+            <h3 className="text-2xl font-extrabold text-rose-600">{outOfStockCount}</h3>
+            <p className="text-xs text-slate-400">Stok 0 unit</p>
           </div>
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${outOfStockCount > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
-            <AlertCircle className="w-6 h-6" />
+          <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
+            <XCircle className="w-6 h-6" />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Grafik Distribusi Kategori Interaktif */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/85 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
-              <BarChart2 className="w-5 h-5 text-indigo-600" />
-              <span>Grafik Visual Distribusi Kategori</span>
+      {/* Grid: Recent Transactions & Category Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Transactions */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-indigo-600" /> Mutasi & Transaksi Terbaru
             </h3>
-            <span className="text-xs font-medium text-slate-400">Interaktif</span>
+            <span className="text-xs text-slate-400">{transactions.length} Total Riwayat</span>
           </div>
-          
-          <div className="space-y-3 pt-2">
-            {uniqueCategories.filter(c => c !== 'Semua').map((cat, idx) => {
-              const count = items.filter(i => i.category === cat).length
-              const percentage = totalItemsCount > 0 ? Math.round((count / totalItemsCount) * 100) : 0
-              const isHovered = hoveredCat === cat
 
-              return (
-                <div 
-                  key={idx} 
-                  className={`space-y-1 p-2 rounded-xl transition-all cursor-pointer ${isHovered ? 'bg-indigo-50/70 scale-[1.01]' : 'hover:bg-slate-50'}`}
-                  onMouseEnter={() => setHoveredCat(cat)}
-                  onMouseLeave={() => setHoveredCat(null)}
-                >
-                  <div className="flex justify-between text-xs font-semibold text-slate-700">
-                    <span>{cat}</span>
-                    <span className="text-indigo-600 font-bold">{count} Produk ({percentage}%)</span>
+          <div className="space-y-3">
+            {transactions.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-6">Belum ada riwayat transaksi mutasi stok.</p>
+            ) : (
+              transactions.slice(0, 5).map((tx, idx) => {
+                const txType = (tx?.type || '').toUpperCase()
+                const isMasuk = txType === 'MASUK'
+                const isOpname = txType === 'OPNAME'
+
+                return (
+                  <div key={tx.id || idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-2 rounded-lg ${isMasuk ? 'bg-emerald-100 text-emerald-700' : isOpname ? 'bg-indigo-100 text-indigo-700' : 'bg-rose-100 text-rose-700'}`}>
+                        {isMasuk ? <ArrowDownRight className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-xs sm:text-sm">{tx.item_title || 'Barang Tanpa Nama'}</p>
+                        <p className="text-xs text-slate-500">{tx.notes || '-'} • {tx.created_at ? new Date(tx.created_at).toLocaleString('id-ID') : '-'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${isMasuk ? 'bg-emerald-100 text-emerald-800' : isOpname ? 'bg-indigo-100 text-indigo-800' : 'bg-rose-100 text-rose-800'}`}>
+                        {txType || 'MUTASI'} {tx.qty}
+                      </span>
+                    </div>
                   </div>
-                  <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5">
-                    <div 
-                      className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-all duration-700" 
-                      style={{ width: `${percentage}%` }} 
-                    />
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })
+            )}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/85 shadow-sm space-y-4">
-          <h3 className="text-base font-bold text-slate-900">Aktivitas Sesi & Autentikasi</h3>
-          <div className="space-y-3 text-sm text-slate-600">
-            <div className="p-3.5 bg-slate-50 rounded-xl flex items-center justify-between">
-              <span className="font-medium text-slate-700">Status Database Supabase</span>
-              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-md">Terhubung (Realtime)</span>
+        {/* Category & Supplier Summary */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div className="border-b border-slate-100 pb-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-indigo-600" /> Kategori & Supplier
+            </h3>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Distribusi Kategori</p>
+              <div className="space-y-2 max-h-40 overflow-y-auto no-scrollbar">
+                {uniqueCategories.filter(c => c !== 'Semua').length === 0 ? (
+                  <p className="text-xs text-slate-400">Belum ada kategori terdaftar.</p>
+                ) : (
+                  uniqueCategories.filter(c => c !== 'Semua').map((cat, idx) => {
+                    const count = items.filter(i => i.category === cat).length
+                    return (
+                      <div key={idx} className="flex justify-between items-center text-xs bg-slate-50 px-3 py-2 rounded-lg">
+                        <span className="font-medium text-slate-700">{cat}</span>
+                        <span className="font-bold text-indigo-600">{count} Produk</span>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             </div>
-            <div className="p-3.5 bg-slate-50 rounded-xl flex items-center justify-between">
-              <span className="font-medium text-slate-700">Level Akses Akun</span>
-              <span className="px-2.5 py-1 bg-indigo-100 text-indigo-800 font-bold text-xs rounded-md">{userRole.toUpperCase()}</span>
-            </div>
-            <div className="p-3.5 bg-slate-50 rounded-xl flex items-center justify-between">
-              <span className="font-medium text-slate-700">Total Supplier Terdaftar</span>
-              <span className="font-bold text-slate-900">{suppliers.length} Vendor</span>
+
+            <div className="pt-2 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Vendor Supplier Aktif</p>
+              <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center">
+                <span className="text-xs font-medium text-indigo-900">Total Supplier Mitra</span>
+                <span className="text-sm font-extrabold text-indigo-700">{suppliers.length} Vendor</span>
+              </div>
             </div>
           </div>
         </div>

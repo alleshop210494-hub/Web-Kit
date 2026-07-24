@@ -836,6 +836,30 @@ export const Dashboard = () => {
         </div>
       </div>
 
+      {/* Notifications / Alerts */}
+      {error && (
+        <div className="flex items-center justify-between bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button onClick={() => setError('')} className="text-rose-400 hover:text-rose-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      {success && (
+        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">
+          <div className="flex items-center space-x-2">
+            <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+            <span>{success}</span>
+          </div>
+          <button onClick={() => setSuccess('')} className="text-emerald-400 hover:text-emerald-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Navigation Tabs (Scrollable on Mobile) */}
       <div className="flex space-x-2 border-b border-slate-200 overflow-x-auto no-scrollbar">
         <button
@@ -850,7 +874,7 @@ export const Dashboard = () => {
           className={`px-4 sm:px-5 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'inventory' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <Package className="w-4 h-4" />
-          <span>Produk ({items.length})</span>
+          <span>Manajemen Produk</span>
         </button>
         <button
           onClick={() => setActiveTab('opname')}
@@ -863,264 +887,184 @@ export const Dashboard = () => {
           onClick={() => setActiveTab('transactions')}
           className={`px-4 sm:px-5 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'transactions' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
-          <FileText className="w-4 h-4" />
-          <span>Transaksi</span>
+          <Truck className="w-4 h-4" />
+          <span>Riwayat Transaksi</span>
         </button>
         <button
           onClick={() => setActiveTab('suppliers')}
           className={`px-4 sm:px-5 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'suppliers' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
-          <Truck className="w-4 h-4" />
-          <span>Supplier ({suppliers.length})</span>
+          <Layers className="w-4 h-4" />
+          <span>Daftar Supplier</span>
         </button>
       </div>
 
-      {/* Notification Alerts */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-xs sm:text-sm flex items-center space-x-3 shadow-sm">
-          <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500" />
-          <span>{error}</span>
-        </div>
-      )}
-      {success && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl text-xs sm:text-sm flex items-center space-x-3 shadow-sm">
-          <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-600" />
-          <span>{success}</span>
-        </div>
-      )}
-
-      {/* RENDER ACTIVE TAB */}
+      {/* Tab Content Rendering */}
       {activeTab === 'overview' && (
-        <OverviewTab 
+        <OverviewTab
           items={items}
+          transactions={transactions}
           suppliers={suppliers}
           totalItemsCount={totalItemsCount}
           totalValuation={totalValuation}
           lowStockCount={lowStockCount}
           outOfStockCount={outOfStockCount}
           uniqueCategories={uniqueCategories}
-          userRole={userRole}
         />
       )}
-
       {activeTab === 'inventory' && (
-        <InventoryTab 
-          items={items}
-          loading={loading}
+        <InventoryTab
           paginatedItems={paginatedItems}
-          selectedCategory={selectedCategory}
-          setSelectedCategory={setSelectedCategory}
+          filteredItems={filteredItems}
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
           uniqueCategories={uniqueCategories}
-          userRole={userRole}
-          handleOpenModal={handleOpenModal}
-          handleDelete={handleDelete}
+          stockStatusFilter={stockStatusFilter}
+          setStockStatusFilter={setStockStatusFilter}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
           totalPages={totalPages}
           itemsPerPage={itemsPerPage}
           setItemsPerPage={setItemsPerPage}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          stockStatusFilter={stockStatusFilter}
-          setStockStatusFilter={setStockStatusFilter}
+          userRole={userRole}
+          handleOpenModal={handleOpenModal}
+          handleDelete={handleDelete}
           setIsScannerOpen={setIsScannerOpen}
         />
       )}
-
       {activeTab === 'opname' && (
-        <OpnameTab 
+        <OpnameTab
           items={items}
           opnameInputs={opnameInputs}
           setOpnameInputs={setOpnameInputs}
           handleProcessOpname={handleProcessOpname}
         />
       )}
-
       {activeTab === 'transactions' && (
-        <TransactionsTab 
+        <TransactionsTab
           transactions={transactions}
-          setIsTransModalOpen={setIsTransModalOpen}
           handlePrintInvoice={handlePrintInvoice}
         />
       )}
-
       {activeTab === 'suppliers' && (
-        <SuppliersTab 
+        <SuppliersTab
           suppliers={suppliers}
           userRole={userRole}
           setIsSupplierModalOpen={setIsSupplierModalOpen}
         />
       )}
 
-      {/* MODAL: BARCODE SCANNER / KAMERA */}
-      {isScannerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
-                <Camera className="w-5 h-5 text-indigo-600" />
-                <span>Scan Barcode / Kamera</span>
-              </h3>
-              <button onClick={() => setIsScannerOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="relative bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center">
-              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-              <div className="absolute inset-0 border-2 border-indigo-500/50 m-8 rounded-lg pointer-events-none flex items-center justify-center">
-                <div className="w-full h-0.5 bg-red-500/80 animate-pulse" />
-              </div>
-            </div>
-
-            <p className="text-xs text-center text-slate-500">
-              Arahkan kamera ke barcode produk, atau ketik SKU manual:
-            </p>
-
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                placeholder="Hasil scan atau SKU..."
-                value={scannerResult}
-                onChange={(e) => setScannerResult(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-              />
-              <button
-                onClick={() => {
-                  setSearchTerm(scannerResult)
-                  setActiveTab('inventory')
-                  setIsScannerOpen(false)
-                  setSuccess(`Pencarian produk: ${scannerResult}`)
-                }}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-500 whitespace-nowrap"
-              >
-                Cari
-              </button>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button 
-                onClick={() => setIsScannerOpen(false)} 
-                className="px-4 py-2 border border-slate-200 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: FORM PRODUK (TAMBAH/EDIT) */}
-      {isModalOpen && userRole === 'admin' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+      {/* Modal Produk (Tambah/Edit) */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b pb-3">
               <h3 className="text-lg font-bold text-slate-900">
-                {editingId ? 'Edit Produk & Atribut' : 'Tambah Produk Baru'}
+                {editingId ? 'Edit Data Produk' : 'Tambah Produk Baru'}
               </h3>
-              <button onClick={handleCloseModal} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600">
-                <X className="w-4 h-4" />
+              <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
               </button>
             </div>
-
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Nama Barang</label>
-                  <input
-                    type="text"
-                    required
-                    value={namaBarang}
-                    onChange={(e) => setNamaBarang(e.target.value)}
-                    placeholder="Contoh: Laptop Asus..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">SKU / Kode Barcode</label>
-                  <input
-                    type="text"
-                    required
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                    placeholder="Contoh: SKU-001"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Barang</label>
+                <input
+                  type="text"
+                  required
+                  value={namaBarang}
+                  onChange={(e) => setNamaBarang(e.target.value)}
+                  placeholder="Contoh: Semen Gresik 50kg"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                />
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Kategori</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Kategori</label>
                   <input
                     type="text"
-                    required
                     value={kategori}
                     onChange={(e) => setKategori(e.target.value)}
-                    placeholder="Contoh: Elektronik"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Contoh: Bahan Bangunan"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Lokasi Rak / Zona</label>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">SKU / Kode Barang</label>
                   <input
                     type="text"
-                    required
-                    value={lokasiRak}
-                    onChange={(e) => setLokasiRak(e.target.value)}
-                    placeholder="Contoh: Rak B-03"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500"
+                    value={sku}
+                    onChange={(e) => setSku(e.target.value)}
+                    placeholder="Contoh: SKU-1001"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                   />
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Jumlah Stok</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Jumlah Stok Awal</label>
                   <input
                     type="number"
                     required
-                    min="0"
                     value={stok}
                     onChange={(e) => setStok(e.target.value)}
                     placeholder="10"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Harga Satuan (Rp)</label>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Harga Satuan (Rp)</label>
                   <input
                     type="number"
                     required
-                    min="0"
                     value={harga}
                     onChange={(e) => setHarga(e.target.value)}
-                    placeholder="5000000"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="50000"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                   />
                 </div>
               </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Pilih Supplier / Vendor</label>
-                <select
-                  value={supplierName}
-                  onChange={(e) => setSupplierName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500"
-                >
-                  {suppliers.map(sup => (
-                    <option key={sup.id} value={sup.name}>{sup.name}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Lokasi Rak / Gudang</label>
+                  <input
+                    type="text"
+                    value={lokasiRak}
+                    onChange={(e) => setLokasiRak(e.target.value)}
+                    placeholder="Rak A-01"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier</label>
+                  <select
+                    value={supplierName}
+                    onChange={(e) => setSupplierName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                  >
+                    {suppliers.map(sup => (
+                      <option key={sup.id} value={sup.name}>{sup.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-
-              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={handleCloseModal} className="px-4 py-2 border border-slate-200 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50">
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200"
+                >
                   Batal
                 </button>
-                <button type="submit" disabled={submitting} className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-500 shadow-md">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-500 shadow-md"
+                >
                   {submitting ? 'Menyimpan...' : 'Simpan Produk'}
                 </button>
               </div>
@@ -1129,127 +1073,175 @@ export const Dashboard = () => {
         </div>
       )}
 
-      {/* MODAL: TRANSAKSI MASUK / KELUAR */}
-      {isTransModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-bold text-slate-900">Catat Mutasi Stok</h3>
-              <button onClick={() => setIsTransModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                <X className="w-4 h-4" />
+      {/* Modal Supplier */}
+      {isSupplierModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="text-lg font-bold text-slate-900">Tambah Supplier Baru</h3>
+              <button onClick={() => setIsSupplierModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
               </button>
             </div>
-
-            <form onSubmit={handleAddTransaction} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Pilih Produk</label>
-                <select
-                  required
-                  value={transItem}
-                  onChange={(e) => setTransItem(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                >
-                  <option value="">-- Pilih Produk --</option>
-                  {items.map(item => (
-                    <option key={item.id} value={item.id}>{item.title} (Stok: {item.stock})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Jenis Transaksi</label>
-                <select
-                  value={transType}
-                  onChange={(e) => setTransType(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                >
-                  <option value="MASUK">Stok Masuk (Restock / Pembelian)</option>
-                  <option value="KELUAR">Stok Keluar (Penjualan / Pemakaian)</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Jumlah Unit</label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  value={transQty}
-                  onChange={(e) => setTransQty(e.target.value)}
-                  placeholder="Contoh: 5"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Catatan / Keterangan</label>
+            <form onSubmit={handleAddSupplier} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Supplier / Perusahaan</label>
                 <input
                   type="text"
-                  value={transNotes}
-                  onChange={(e) => setTransNotes(e.target.value)}
-                  placeholder="Contoh: PO-001 dari Supplier"
+                  required
+                  value={supNameInput}
+                  onChange={(e) => setSupNameInput(e.target.value)}
+                  placeholder="Contoh: PT Sumber Jaya"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                 />
               </div>
-
-              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setIsTransModalOpen(false)} className="px-4 py-2 border rounded-xl text-sm">Batal</button>
-                <button type="submit" className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium">Proses Mutasi</button>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nomor Telepon</label>
+                <input
+                  type="text"
+                  value={supPhoneInput}
+                  onChange={(e) => setSupPhoneInput(e.target.value)}
+                  placeholder="Contoh: 08123456789"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Alamat</label>
+                <input
+                  type="text"
+                  value={supAddrInput}
+                  onChange={(e) => setSupAddrInput(e.target.value)}
+                  placeholder="Contoh: Jl. Ahmad Yani No. 10"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                />
+              </div>
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSupplierModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-500 shadow-md"
+                >
+                  Simpan Supplier
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL: TAMBAH SUPPLIER */}
-      {isSupplierModalOpen && userRole === 'admin' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-bold text-slate-900">Tambah Supplier Baru</h3>
-              <button onClick={() => setIsSupplierModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                <X className="w-4 h-4" />
+      {/* Modal Transaksi Barang Masuk/Keluar */}
+      {isTransModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="text-lg font-bold text-slate-900">Catat Transaksi Mutasi Stok</h3>
+              <button onClick={() => setIsTransModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
               </button>
             </div>
-
-            <form onSubmit={handleAddSupplier} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Nama Perusahaan / Supplier</label>
-                <input
-                  type="text"
+            <form onSubmit={handleAddTransaction} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Pilih Produk</label>
+                <select
                   required
-                  value={supNameInput}
-                  onChange={(e) => setSupNameInput(e.target.value)}
-                  placeholder="Contoh: PT Jaya Abadi"
+                  value={transItem}
+                  onChange={(e) => setTransItem(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                />
+                >
+                  <option value="">-- Pilih Barang --</option>
+                  {items.map(item => (
+                    <option key={item.id} value={item.id}>{item.title} (Stok: {item.stock || 0})</option>
+                  ))}
+                </select>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Nomor Telepon</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Jenis Mutasi</label>
+                  <select
+                    value={transType}
+                    onChange={(e) => setTransType(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                  >
+                    <option value="MASUK">MASUK</option>
+                    <option value="KELUAR">KELUAR</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Jumlah Unit</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={transQty}
+                    onChange={(e) => setTransQty(e.target.value)}
+                    placeholder="Contoh: 5"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Keterangan / Catatan</label>
                 <input
                   type="text"
-                  value={supPhoneInput}
-                  onChange={(e) => setSupPhoneInput(e.target.value)}
-                  placeholder="Contoh: 081234567"
+                  value={transNotes}
+                  onChange={(e) => setTransNotes(e.target.value)}
+                  placeholder="Contoh: Pengiriman ke toko cabang"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Alamat</label>
-                <input
-                  type="text"
-                  value={supAddrInput}
-                  onChange={(e) => setSupAddrInput,
-                  onChange={(e) => setSupAddrInput(e.target.value)}
-                  placeholder="Contoh: Jl. Ahmad Yani No. 10"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                />
-              </div>
-              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setIsSupplierModalOpen(false)} className="px-4 py-2 border rounded-xl text-sm">Batal</button>
-                <button type="submit" className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium">Simpan Supplier</button>
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsTransModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-500 shadow-md"
+                >
+                  Simpan Transaksi
+                </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Scanner Kamera */}
+      {isScannerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-center">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Camera className="w-5 h-5 text-indigo-600" /> Scanner Barcode / Kamera
+              </h3>
+              <button onClick={() => setIsScannerOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="relative bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center">
+              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+              <div className="absolute inset-0 border-2 border-indigo-500/50 m-8 rounded-lg pointer-events-none flex items-center justify-center">
+                <span className="text-white text-xs bg-black/60 px-2 py-1 rounded">Arahkan ke Barcode Produk</span>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              Pastikan pencahayaan cukup dan kamera fokus pada barcode atau QR code barang.
+            </p>
+            <button
+              onClick={() => setIsScannerOpen(false)}
+              className="w-full py-2 bg-slate-800 text-white rounded-xl text-sm font-medium hover:bg-slate-700"
+            >
+              Tutup Scanner
+            </button>
           </div>
         </div>
       )}
