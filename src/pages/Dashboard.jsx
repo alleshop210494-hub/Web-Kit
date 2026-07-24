@@ -5,7 +5,7 @@ import { supabase } from '../services/supabase'
 import { 
   Package, Layers, Plus, Trash2, Edit2, AlertCircle, CheckCircle, 
   X, Search, Download, TrendingUp, AlertTriangle, ArrowDownRight, 
-  ArrowUpRight, Truck, MapPin, Barcode, Users, FileText 
+  ArrowUpRight, Truck, MapPin, Barcode, Users, FileText, Printer 
 } from 'lucide-react'
 
 export const Dashboard = () => {
@@ -82,11 +82,14 @@ export const Dashboard = () => {
 
     initDashboard()
 
-    // Mengaktifkan Real-Time Listener dari Supabase
+    // Mengaktifkan Real-Time Listener dari Supabase untuk items & transactions
     const channel = supabase
-      .channel('public:items')
+      .channel('public:inventory_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, () => {
         fetchData()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        fetchTransactions()
       })
       .subscribe()
 
@@ -100,12 +103,28 @@ export const Dashboard = () => {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const data = await itemService.getItems()
-      setItems(data || [])
+      const dataItems = await itemService.getItems()
+      setItems(dataItems || [])
+      await fetchTransactions()
     } catch (err) {
       setError('Gagal memuat data inventori: ' + err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchTransactions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (!error && data) {
+        setTransactions(data)
+      }
+    } catch (err) {
+      console.error('Gagal mengambil riwayat transaksi:', err.message)
     }
   }
 
@@ -170,10 +189,18 @@ export const Dashboard = () => {
         setSuccess('Data barang berhasil diperbarui.')
       } else {
         await itemService.createItem(payload)
-        setTransactions(prev => [
-          { id: Date.now(), itemTitle: namaBarang, type: 'MASUK', qty: parseInt(stok, 10) || 0, notes: 'Stok Awal / Input Baru', date: new Date().toLocaleString() },
-          ...prev
+        
+        // Catat transaksi stok awal ke database Supabase
+        await supabase.from('transactions').insert([
+          {
+            item_title: namaBarang,
+            type: 'MASUK',
+            qty: parseInt(stok, 10) || 0,
+            notes: 'Stok Awal / Input Produk Baru',
+            user_email: user?.email || 'admin@email.com'
+          }
         ])
+
         setSuccess('Barang baru berhasil ditambahkan ke gudang.')
       }
       
@@ -204,12 +231,12 @@ export const Dashboard = () => {
     }
   }
 
-  const handleAddTransaction = (e) => {
+  const handleAddTransaction = async (e) => {
     e.preventDefault()
     if (!transItem || !transQty) return
 
     const qtyNum = parseInt(transQty, 10)
-    const targetItem = items.find(i => i.id === transItem)
+    const targetItem = items.find(i => String(i.id) === String(transItem))
     if (!targetItem) return
 
     if (transType === 'KELUAR' && targetItem.stock < qtyNum) {
@@ -219,19 +246,28 @@ export const Dashboard = () => {
 
     const newStock = transType === 'MASUK' ? targetItem.stock + qtyNum : targetItem.stock - qtyNum
 
-    itemService.updateItem(targetItem.id, { ...targetItem, stock: newStock }).then(() => {
-      fetchData()
-      setTransactions(prev => [
-        { id: Date.now(), itemTitle: targetItem.title, type: transType, qty: qtyNum, notes: transNotes || 'Transaksi Manual', date: new Date().toLocaleString() },
-        ...prev
+    try {
+      await itemService.updateItem(targetItem.id, { ...targetItem, stock: newStock })
+      
+      // Simpan transaksi mutasi ke tabel transactions Supabase
+      await supabase.from('transactions').insert([
+        {
+          item_title: targetItem.title,
+          type: transType,
+          qty: qtyNum,
+          notes: transNotes || 'Mutasi Manual Gudang',
+          user_email: user?.email || 'user'
+        }
       ])
-      setSuccess(`Transaksi ${transType} berhasil dicatat.`)
+
+      await fetchData()
+      setSuccess(`Transaksi ${transType} berhasil dicatat dan disimpan ke database.`)
       setIsTransModalOpen(false)
       setTransQty('')
       setTransNotes('')
-    }).catch(err => {
+    } catch (err) {
       setError('Gagal memproses transaksi: ' + err.message)
-    })
+    }
   }
 
   const handleAddSupplier = (e) => {
@@ -290,6 +326,167 @@ export const Dashboard = () => {
     setSuccess('Laporan berhasil diunduh.')
   }
 
+  // FITUR CETAK LAPORAN INVENTORI (PDF VIA BROWSER PRINT)
+  const handlePrintInventoryReport = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Pop-up diblokir oleh browser. Harap izinkan pop-up untuk mencetak laporan.')
+      return
+    }
+
+    const totalValuation = items.reduce((acc, item) => acc + ((item.stock || 0) * (item.price || 0)), 0)
+    const printDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Laporan Inventori Gudang - ${printDate}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #333; margin: 20px; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+            .header h1 { margin: 0; font-size: 22px; color: #1e1b4b; }
+            .header p { margin: 5px 0 0; font-size: 12px; color: #666; }
+            .summary { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 13px; background: #f8fafc; padding: 10px; border-radius: 6px; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+            th { background-color: #f1f5f9; color: #0f172a; }
+            .text-right { text-align: right; }
+            .footer { margin-top: 30px; text-align: right; font-size: 12px; }
+            @media print {
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>ENTERPRISE INVENTORY MANAGEMENT SYSTEM</h1>
+            <p>Laporan Resmi Stok Barang & Valuasi Gudang</p>
+          </div>
+          <div class="summary">
+            <div><strong>Tanggal Cetak:</strong> ${printDate}</div>
+            <div><strong>Total Jenis Produk:</strong> ${items.length} Item</div>
+            <div><strong>Total Valuasi Aset:</strong> Rp ${totalValuation.toLocaleString('id-ID')}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>SKU</th>
+                <th>Nama Barang</th>
+                <th>Kategori</th>
+                <th>Stok</th>
+                <th class="text-right">Harga Satuan</th>
+                <th>Lokasi Rak</th>
+                <th>Supplier</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map((item, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${item.sku || '-'}</td>
+                  <td><strong>${item.title}</strong></td>
+                  <td>${item.category || 'Lainnya'}</td>
+                  <td>${item.stock || 0} Unit</td>
+                  <td class="text-right">Rp ${Number(item.price || 0).toLocaleString('id-ID')}</td>
+                  <td>${item.location || '-'}</td>
+                  <td>${item.supplier || '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="footer">
+            <p>Dicetak oleh: <strong>${user?.email || 'Admin'}</strong></p>
+            <br><br>
+            <p>( __________________________ )</p>
+            <p>Kepala Gudang / Penanggung Jawab</p>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `
+
+    printWindow.document.write(htmlContent)
+    printWindow.document.close()
+  }
+
+  // FITUR CETAK INVOICE / BUKTI TRANSAKSI (PDF VIA BROWSER PRINT)
+  const handlePrintInvoice = (tx) => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Pop-up diblokir oleh browser.')
+      return
+    }
+
+    const txDateFormatted = tx.created_at ? new Date(tx.created_at).toLocaleString('id-ID') : new Date().toLocaleString()
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice Mutasi Stok - #${tx.id}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #333; margin: 30px; }
+            .invoice-box { max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+            .title { font-size: 20px; font-weight: bold; color: #1e1b4b; margin-bottom: 5px; }
+            .subtitle { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+            .info-table { width: 100%; margin-bottom: 20px; font-size: 13px; border-collapse: collapse; }
+            .info-table td { padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+            .badge-masuk { background: #d1fae5; color: #065f46; }
+            .badge-keluar { background: #ffe4e6; color: #9f1239; }
+            .footer { margin-top: 40px; text-align: right; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-box">
+            <div class="title">INVOICE MUTASI STOK GUDANG</div>
+            <div class="subtitle">No. Referensi: TX-${tx.id} | Waktu: ${txDateFormatted}</div>
+            
+            <table class="info-table">
+              <tr>
+                <td><strong>Jenis Mutasi:</strong></td>
+                <td><span class="badge ${tx.type === 'MASUK' ? 'badge-masuk' : 'badge-keluar'}">${tx.type}</span></td>
+              </tr>
+              <tr>
+                <td><strong>Nama Produk:</strong></td>
+                <td><strong>${tx.item_title}</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Jumlah Unit:</strong></td>
+                <td>${tx.qty} Unit</td>
+              </tr>
+              <tr>
+                <td><strong>Keterangan / Catatan:</strong></td>
+                <td>${tx.notes || '-'}</td>
+              </tr>
+              <tr>
+                <td><strong>Operator / User:</strong></td>
+                <td>${tx.user_email || user?.email || 'Admin'}</td>
+              </tr>
+            </table>
+
+            <div class="footer">
+              <p>Disetujui Oleh,</p>
+              <br><br>
+              <p><strong>( ______________________ )</strong></p>
+              <p>Bagian Logistik & Inventori</p>
+            </div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `
+
+    printWindow.document.write(htmlContent)
+    printWindow.document.close()
+  }
+
   // Kalkulasi Metrik
   const totalItemsCount = items.length
   const totalValuation = items.reduce((acc, item) => acc + ((item.stock || 0) * (item.price || 0)), 0)
@@ -329,13 +526,21 @@ export const Dashboard = () => {
             </p>
           </div>
           
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setIsTransModalOpen(true)}
               className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-sm border border-slate-700 shadow-sm transition-all"
             >
               <Truck className="w-4 h-4 text-indigo-400" />
               <span>Catat Transaksi</span>
+            </button>
+            <button
+              onClick={handlePrintInventoryReport}
+              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm shadow-sm transition-all"
+              title="Cetak Laporan PDF"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Cetak Laporan PDF</span>
             </button>
             <button
               onClick={handleExportCSV}
@@ -627,8 +832,8 @@ export const Dashboard = () => {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden p-6 space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Riwayat Stok Masuk & Keluar</h2>
-              <p className="text-sm text-slate-500">Log audit seluruh mutasi stok barang di gudang</p>
+              <h2 className="text-lg font-bold text-slate-900">Riwayat Stok Masuk & Keluar (Database)</h2>
+              <p className="text-sm text-slate-500">Log audit seluruh mutasi stok barang di gudang secara permanen</p>
             </div>
             <button
               onClick={() => setIsTransModalOpen(true)}
@@ -639,7 +844,7 @@ export const Dashboard = () => {
           </div>
 
           {transactions.length === 0 ? (
-            <div className="p-12 text-center text-slate-400 text-sm">Belum ada transaksi tercatat pada sesi ini.</div>
+            <div className="p-12 text-center text-slate-400 text-sm">Belum ada transaksi tercatat pada database.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -649,7 +854,9 @@ export const Dashboard = () => {
                     <th className="py-3 px-4">Nama Produk</th>
                     <th className="py-3 px-4">Jumlah</th>
                     <th className="py-3 px-4">Keterangan / Catatan</th>
+                    <th className="py-3 px-4">Operator</th>
                     <th className="py-3 px-4">Waktu</th>
+                    <th className="py-3 px-4 text-right">Invoice PDF</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
@@ -668,10 +875,21 @@ export const Dashboard = () => {
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-4 font-semibold text-slate-900">{tx.itemTitle}</td>
+                      <td className="py-3 px-4 font-semibold text-slate-900">{tx.item_title}</td>
                       <td className="py-3 px-4 font-bold">{tx.qty} Unit</td>
                       <td className="py-3 px-4 text-slate-500">{tx.notes}</td>
-                      <td className="py-3 px-4 text-xs text-slate-400">{tx.date}</td>
+                      <td className="py-3 px-4 text-xs font-medium text-slate-700">{tx.user_email || '-'}</td>
+                      <td className="py-3 px-4 text-xs text-slate-400">{new Date(tx.created_at).toLocaleString('id-ID')}</td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => handlePrintInvoice(tx)}
+                          className="inline-flex items-center space-x-1 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-semibold transition"
+                          title="Cetak Invoice Transaksi"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Cetak Invoice</span>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
