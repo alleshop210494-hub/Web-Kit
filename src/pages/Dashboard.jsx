@@ -359,62 +359,170 @@ export const Dashboard = () => {
     setSuccess('Supplier baru berhasil ditambahkan.')
   }
 
-  const handleExportCSV = () => {
-    if (filteredItems.length === 0) {
-      setError('Tidak ada data untuk diekspor.')
-      return
-    }
-
-    const headers = ['ID', 'SKU', 'Nama Barang', 'Kategori', 'Stok', 'Harga Satuan (Rp)', 'Lokasi Rak', 'Supplier', 'Tanggal Masuk']
-    const csvRows = [headers.join(';')]
-
-    filteredItems.forEach(item => {
-      const row = [
-        item.id,
-        `"${item.sku || '-'}"`,
-        `"${(item.title || '').replace(/"/g, '""')}"`,
-        `"${(item.category || 'Lainnya')}"`,
-        item.stock || 0,
-        item.price || 0,
-        `"${item.location || '-'}"`,
-        `"${item.supplier || '-'}"`,
-        `"${new Date(item.created_at).toLocaleDateString('id-ID')}"`
-      ]
-      csvRows.push(row.join(';'))
-    })
-
-    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.setAttribute('href', url)
-    link.setAttribute('download', `enterprise_inventory_${new Date().toISOString().slice(0, 10)}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    setSuccess('Laporan berhasil diunduh.')
-  }
-
-  const handlePrintInventoryReport = () => {
+  // FITUR CETAK LAPORAN PDF (DINAMIS SESUAI KATEGORI/TAB AKTIF)
+  const handlePrintReport = () => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
       alert('Pop-up diblokir oleh browser. Harap izinkan pop-up untuk mencetak laporan.')
       return
     }
 
-    const totalValuation = items.reduce((acc, item) => acc + ((item.stock || 0) * (item.price || 0)), 0)
     const printDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+    let title = ''
+    let contentHtml = ''
+
+    if (activeTab === 'overview') {
+      title = 'Laporan Ringkasan & Analitik Gudang'
+      contentHtml = `
+        <h3 style="color: #1e1b4b; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px;">Ringkasan Utama Aset</h3>
+        <table>
+          <tr><td>Total Jenis Produk</td><td><strong>${totalItemsCount} Item</strong></td></tr>
+          <tr><td>Valuasi Aset Gudang</td><td><strong>Rp ${totalValuation.toLocaleString('id-ID')}</strong></td></tr>
+          <tr><td>Stok Menipis (&lt; 2)</td><td><strong>${lowStockCount} Item</strong></td></tr>
+          <tr><td>Stok Habis (0)</td><td><strong>${outOfStockCount} Item</strong></td></tr>
+          <tr><td>Total Supplier Terdaftar</td><td><strong>${suppliers.length} Vendor</strong></td></tr>
+        </table>
+        <h3 style="color: #1e1b4b; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; margin-top: 25px;">Distribusi Kategori Produk</h3>
+        <table>
+          <thead><tr><th>Kategori</th><th>Jumlah Produk</th><th>Persentase</th></tr></thead>
+          <tbody>
+            ${uniqueCategories.filter(c => c !== 'Semua').map(cat => {
+              const count = items.filter(i => i.category === cat).length
+              const pct = totalItemsCount > 0 ? Math.round((count / totalItemsCount) * 100) : 0
+              return `<tr><td>${cat}</td><td>${count} Produk</td><td>${pct}%</td></tr>`
+            }).join('')}
+          </tbody>
+        </table>
+      `
+    } else if (activeTab === 'inventory') {
+      title = 'Laporan Manajemen Produk & Inventori'
+      contentHtml = `
+        <table>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>SKU</th>
+              <th>Nama Barang</th>
+              <th>Kategori</th>
+              <th>Stok</th>
+              <th class="text-right">Harga Satuan</th>
+              <th>Lokasi Rak</th>
+              <th>Supplier</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredItems.map((item, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${item.sku || '-'}</td>
+                <td><strong>${item.title}</strong></td>
+                <td>${item.category || 'Lainnya'}</td>
+                <td>${item.stock || 0} Unit</td>
+                <td class="text-right">Rp ${Number(item.price || 0).toLocaleString('id-ID')}</td>
+                <td>${item.location || '-'}</td>
+                <td>${item.supplier || '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `
+    } else if (activeTab === 'opname') {
+      title = 'Laporan Lembar Kerja Stock Opname (Audit Fisik)'
+      contentHtml = `
+        <table>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>SKU</th>
+              <th>Nama Barang</th>
+              <th>Kategori</th>
+              <th>Lokasi Rak</th>
+              <th>Stok Sistem</th>
+              <th>Stok Fisik Aktual</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((item, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${item.sku || '-'}</td>
+                <td><strong>${item.title}</strong></td>
+                <td>${item.category || 'Lainnya'}</td>
+                <td>${item.location || '-'}</td>
+                <td>${item.stock || 0} Unit</td>
+                <td>__________________</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `
+    } else if (activeTab === 'transactions') {
+      title = 'Laporan Riwayat Mutasi & Transaksi Gudang'
+      contentHtml = `
+        <table>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Waktu & Tanggal</th>
+              <th>Jenis Mutasi</th>
+              <th>Nama Produk</th>
+              <th>Jumlah Unit</th>
+              <th>Keterangan</th>
+              <th>Operator</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transactions.map((tx, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${tx.created_at ? new Date(tx.created_at).toLocaleString('id-ID') : '-'}</td>
+                <td><strong>${tx.type}</strong></td>
+                <td>${tx.item_title}</td>
+                <td>${tx.qty} Unit</td>
+                <td>${tx.notes || '-'}</td>
+                <td>${tx.user_email || 'Admin'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `
+    } else if (activeTab === 'suppliers') {
+      title = 'Laporan Daftar Supplier & Vendor Resmi'
+      contentHtml = `
+        <table>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Nama Perusahaan / Supplier</th>
+              <th>Nomor Telepon</th>
+              <th>Alamat</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${suppliers.map((sup, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td><strong>${sup.name}</strong></td>
+                <td>${sup.phone || '-'}</td>
+                <td>${sup.address || '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `
+    }
 
     const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Laporan Inventori Gudang - ${printDate}</title>
+          <title>${title} - ${printDate}</title>
           <style>
             body { font-family: Arial, sans-serif; color: #333; margin: 20px; }
             .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-            .header h1 { margin: 0; font-size: 22px; color: #1e1b4b; }
+            .header h1 { margin: 0; font-size: 20px; color: #1e1b4b; }
             .header p { margin: 5px 0 0; font-size: 12px; color: #666; }
-            .summary { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 13px; background: #f8fafc; padding: 10px; border-radius: 6px; }
+            .meta-info { margin-bottom: 15px; font-size: 12px; background: #f8fafc; padding: 10px; border-radius: 6px; display: flex; justify-content: space-between; }
             table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
             th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
             th { background-color: #f1f5f9; color: #0f172a; }
@@ -426,43 +534,14 @@ export const Dashboard = () => {
         <body>
           <div class="header">
             <h1>ENTERPRISE INVENTORY MANAGEMENT SYSTEM</h1>
-            <p>Laporan Resmi Stok Barang & Valuasi Gudang</p>
+            <p>${title}</p>
           </div>
-          <div class="summary">
+          <div class="meta-info">
             <div><strong>Tanggal Cetak:</strong> ${printDate}</div>
-            <div><strong>Total Jenis Produk:</strong> ${items.length} Item</div>
-            <div><strong>Total Valuasi Aset:</strong> Rp ${totalValuation.toLocaleString('id-ID')}</div>
+            <div><strong>Dicetak Oleh:</strong> ${user?.email || 'Admin'}</div>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th>No</th>
-                <th>SKU</th>
-                <th>Nama Barang</th>
-                <th>Kategori</th>
-                <th>Stok</th>
-                <th class="text-right">Harga Satuan</th>
-                <th>Lokasi Rak</th>
-                <th>Supplier</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${items.map((item, index) => `
-                <tr>
-                  <td>${index + 1}</td>
-                  <td>${item.sku || '-'}</td>
-                  <td><strong>${item.title}</strong></td>
-                  <td>${item.category || 'Lainnya'}</td>
-                  <td>${item.stock || 0} Unit</td>
-                  <td class="text-right">Rp ${Number(item.price || 0).toLocaleString('id-ID')}</td>
-                  <td>${item.location || '-'}</td>
-                  <td>${item.supplier || '-'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+          ${contentHtml}
           <div class="footer">
-            <p>Dicetak oleh: <strong>${user?.email || 'Admin'}</strong></p>
             <br><br>
             <p>( __________________________ )</p>
             <p>Kepala Gudang / Penanggung Jawab</p>
@@ -474,6 +553,108 @@ export const Dashboard = () => {
 
     printWindow.document.write(htmlContent)
     printWindow.document.close()
+  }
+
+  // FITUR EKSPOR CSV (DINAMIS SESUAI KATEGORI/TAB AKTIF)
+  const handleExportCSV = () => {
+    let headers = []
+    let csvRows = []
+    let filename = ''
+
+    if (activeTab === 'overview') {
+      headers = ['Metrik Ringkasan', 'Nilai']
+      csvRows.push(headers.join(';'))
+      csvRows.push(`"Total Jenis Produk";${totalItemsCount}`)
+      csvRows.push(`"Valuasi Aset Gudang (Rp)";${totalValuation}`)
+      csvRows.push(`"Stok Menipis (< 2)";${lowStockCount}`)
+      csvRows.push(`"Stok Habis (0)";${outOfStockCount}`)
+      csvRows.push(`"Total Supplier Terdaftar";${suppliers.length}`)
+      filename = `ringkasan_analitik_${new Date().toISOString().slice(0, 10)}.csv`
+    } else if (activeTab === 'inventory') {
+      if (filteredItems.length === 0) {
+        setError('Tidak ada data produk untuk diekspor.')
+        return
+      }
+      headers = ['ID', 'SKU', 'Nama Barang', 'Kategori', 'Stok', 'Harga Satuan (Rp)', 'Lokasi Rak', 'Supplier', 'Tanggal Masuk']
+      csvRows.push(headers.join(';'))
+      filteredItems.forEach(item => {
+        csvRows.push([
+          item.id,
+          `"${item.sku || '-'}"`,
+          `"${(item.title || '').replace(/"/g, '""')}"`,
+          `"${(item.category || 'Lainnya')}"`,
+          item.stock || 0,
+          item.price || 0,
+          `"${item.location || '-'}"`,
+          `"${item.supplier || '-'}"`,
+          `"${new Date(item.created_at).toLocaleDateString('id-ID')}"`
+        ].join(';'))
+      })
+      filename = `manajemen_produk_${new Date().toISOString().slice(0, 10)}.csv`
+    } else if (activeTab === 'opname') {
+      if (items.length === 0) {
+        setError('Tidak ada data stock opname untuk diekspor.')
+        return
+      }
+      headers = ['ID', 'SKU', 'Nama Barang', 'Kategori', 'Lokasi Rak', 'Stok Sistem']
+      csvRows.push(headers.join(';'))
+      items.forEach(item => {
+        csvRows.push([
+          item.id,
+          `"${item.sku || '-'}"`,
+          `"${(item.title || '').replace(/"/g, '""')}"`,
+          `"${(item.category || 'Lainnya')}"`,
+          `"${item.location || '-'}"`,
+          item.stock || 0
+        ].join(';'))
+      })
+      filename = `stock_opname_${new Date().toISOString().slice(0, 10)}.csv`
+    } else if (activeTab === 'transactions') {
+      if (transactions.length === 0) {
+        setError('Tidak ada riwayat transaksi untuk diekspor.')
+        return
+      }
+      headers = ['ID', 'Waktu', 'Jenis Mutasi', 'Nama Produk', 'Jumlah Unit', 'Keterangan', 'Operator']
+      csvRows.push(headers.join(';'))
+      transactions.forEach(tx => {
+        csvRows.push([
+          tx.id,
+          `"${tx.created_at ? new Date(tx.created_at).toLocaleString('id-ID') : '-'}"`,
+          `"${tx.type}"`,
+          `"${(tx.item_title || '').replace(/"/g, '""')}"`,
+          tx.qty,
+          `"${(tx.notes || '-').replace(/"/g, '""')}"`,
+          `"${tx.user_email || 'Admin'}"`
+        ].join(';'))
+      })
+      filename = `riwayat_transaksi_${new Date().toISOString().slice(0, 10)}.csv`
+    } else if (activeTab === 'suppliers') {
+      if (suppliers.length === 0) {
+        setError('Tidak ada data supplier untuk diekspor.')
+        return
+      }
+      headers = ['ID', 'Nama Supplier', 'Nomor Telepon', 'Alamat']
+      csvRows.push(headers.join(';'))
+      suppliers.forEach(sup => {
+        csvRows.push([
+          sup.id,
+          `"${(sup.name || '').replace(/"/g, '""')}"`,
+          `"${sup.phone || '-'}"`,
+          `"${(sup.address || '-').replace(/"/g, '""')}"`
+        ].join(';'))
+      })
+      filename = `daftar_supplier_${new Date().toISOString().slice(0, 10)}.csv`
+    }
+
+    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setSuccess('File laporan CSV berhasil diunduh.')
   }
 
   const handlePrintInvoice = (tx) => {
@@ -614,7 +795,7 @@ export const Dashboard = () => {
               Enterprise Inventory Management System
             </h1>
             <p className="text-slate-300 text-sm max-w-xl">
-              Sistem terpadu dengan grafik analitik, scanner barcode kamera, pagination, stock opname, dan laporan lengkap.
+              Sistem terpadu dengan grafik analitik, scanner barcode kamera, pagination, stock opname, dan laporan lengkap per kategori.
             </p>
           </div>
           
@@ -627,9 +808,9 @@ export const Dashboard = () => {
               <span>Catat Transaksi</span>
             </button>
             <button
-              onClick={handlePrintInventoryReport}
+              onClick={handlePrintReport}
               className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm shadow-sm transition-all"
-              title="Cetak Laporan PDF"
+              title="Cetak Laporan PDF Berdasarkan Tab Aktif"
             >
               <Printer className="w-4 h-4" />
               <span>Cetak Laporan PDF</span>
@@ -637,6 +818,7 @@ export const Dashboard = () => {
             <button
               onClick={handleExportCSV}
               className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-sm border border-slate-700 shadow-sm transition-all"
+              title="Ekspor CSV Berdasarkan Tab Aktif"
             >
               <Download className="w-4 h-4" />
               <span>Ekspor CSV</span>
