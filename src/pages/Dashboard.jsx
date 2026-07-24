@@ -776,57 +776,57 @@ export const Dashboard = () => {
   )
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 pb-16">
       {/* Top Bar Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-8 text-white shadow-xl border border-slate-800">
+      <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-800">
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="space-y-2">
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                 <span>Enterprise Sync Active</span>
               </span>
               <span className="px-3 py-1 rounded-full bg-indigo-950 border border-indigo-700/60 text-indigo-300 text-xs font-semibold">
-                Login Sebagai: {userRole.toUpperCase()} ({user?.email || 'User'})
+                Role: {userRole.toUpperCase()}
               </span>
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight">
-              Enterprise Inventory Management System
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              Enterprise Inventory Management
             </h1>
-            <p className="text-slate-300 text-sm max-w-xl">
-              Sistem terpadu dengan grafik analitik, scanner barcode kamera, pagination, stock opname, dan laporan lengkap per kategori.
+            <p className="text-slate-300 text-xs sm:text-sm max-w-xl">
+              Sistem terpadu dengan analitik, scanner barcode kamera, stock opname, dan laporan lengkap.
             </p>
           </div>
           
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto pt-2 md:pt-0">
             <button
               onClick={() => setIsTransModalOpen(true)}
-              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-sm border border-slate-700 shadow-sm transition-all"
+              className="flex-1 md:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs sm:text-sm border border-slate-700 shadow-sm transition-all"
             >
               <Truck className="w-4 h-4 text-indigo-400" />
-              <span>Catat Transaksi</span>
+              <span>Transaksi</span>
             </button>
             <button
               onClick={handlePrintReport}
-              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm shadow-sm transition-all"
+              className="flex-1 md:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs sm:text-sm shadow-sm transition-all"
               title="Cetak Laporan PDF Berdasarkan Tab Aktif"
             >
               <Printer className="w-4 h-4" />
-              <span>Cetak Laporan PDF</span>
+              <span>Cetak PDF</span>
             </button>
             <button
               onClick={handleExportCSV}
-              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-sm border border-slate-700 shadow-sm transition-all"
+              className="flex-1 md:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs sm:text-sm border border-slate-700 shadow-sm transition-all"
               title="Ekspor CSV Berdasarkan Tab Aktif"
             >
               <Download className="w-4 h-4" />
-              <span>Ekspor CSV</span>
+              <span>CSV</span>
             </button>
             {userRole === 'admin' && (
               <button 
                 onClick={() => handleOpenModal()} 
-                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm shadow-lg shadow-indigo-600/35 transition-all"
+                className="w-full md:w-auto inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm shadow-lg shadow-indigo-600/35 transition-all"
               >
                 <Plus className="w-4 h-4" />
                 <span>Tambah Produk</span>
@@ -836,54 +836,54 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex space-x-2 border-b border-slate-200 overflow-x-auto">
+      {/* Navigation Tabs (Scrollable on Mobile) */}
+      <div className="flex space-x-2 border-b border-slate-200 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-5 py-3 font-semibold text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'overview' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`px-4 sm:px-5 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'overview' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <TrendingUp className="w-4 h-4" />
           <span>Ringkasan & Analitik</span>
         </button>
         <button
           onClick={() => setActiveTab('inventory')}
-          className={`px-5 py-3 font-semibold text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'inventory' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`px-4 sm:px-5 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'inventory' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <Package className="w-4 h-4" />
-          <span>Manajemen Produk ({items.length})</span>
+          <span>Produk ({items.length})</span>
         </button>
         <button
           onClick={() => setActiveTab('opname')}
-          className={`px-5 py-3 font-semibold text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'opname' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`px-4 sm:px-5 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'opname' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <CheckSquare className="w-4 h-4" />
-          <span>Stock Opname (Audit Fisik)</span>
+          <span>Stock Opname</span>
         </button>
         <button
           onClick={() => setActiveTab('transactions')}
-          className={`px-5 py-3 font-semibold text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'transactions' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`px-4 sm:px-5 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'transactions' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <FileText className="w-4 h-4" />
-          <span>Riwayat Transaksi</span>
+          <span>Transaksi</span>
         </button>
         <button
           onClick={() => setActiveTab('suppliers')}
-          className={`px-5 py-3 font-semibold text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'suppliers' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`px-4 sm:px-5 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${activeTab === 'suppliers' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <Truck className="w-4 h-4" />
-          <span>Daftar Supplier ({suppliers.length})</span>
+          <span>Supplier ({suppliers.length})</span>
         </button>
       </div>
 
       {/* Notification Alerts */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm flex items-center space-x-3 shadow-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-xs sm:text-sm flex items-center space-x-3 shadow-sm">
           <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500" />
           <span>{error}</span>
         </div>
       )}
       {success && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl text-sm flex items-center space-x-3 shadow-sm">
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl text-xs sm:text-sm flex items-center space-x-3 shadow-sm">
           <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-600" />
           <span>{success}</span>
         </div>
@@ -956,7 +956,7 @@ export const Dashboard = () => {
 
       {/* MODAL: BARCODE SCANNER / KAMERA */}
       {isScannerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
@@ -976,13 +976,13 @@ export const Dashboard = () => {
             </div>
 
             <p className="text-xs text-center text-slate-500">
-              Arahkan kamera perangkat ke barcode produk. Atau ketik SKU manual di bawah:
+              Arahkan kamera ke barcode produk, atau ketik SKU manual:
             </p>
 
             <div className="flex space-x-2">
               <input
                 type="text"
-                placeholder="Hasil scan atau masukkan SKU..."
+                placeholder="Hasil scan atau SKU..."
                 value={scannerResult}
                 onChange={(e) => setScannerResult(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
@@ -992,7 +992,7 @@ export const Dashboard = () => {
                   setSearchTerm(scannerResult)
                   setActiveTab('inventory')
                   setIsScannerOpen(false)
-                  setSuccess(`Pencarian produk berdasarkan SKU/Barcode: ${scannerResult}`)
+                  setSuccess(`Pencarian produk: ${scannerResult}`)
                 }}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-500 whitespace-nowrap"
               >
@@ -1014,8 +1014,8 @@ export const Dashboard = () => {
 
       {/* MODAL: FORM PRODUK (TAMBAH/EDIT) */}
       {isModalOpen && userRole === 'admin' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs px-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-900">
                 {editingId ? 'Edit Produk & Atribut' : 'Tambah Produk Baru'}
@@ -1026,7 +1026,7 @@ export const Dashboard = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700">Nama Barang</label>
                   <input
@@ -1051,7 +1051,7 @@ export const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700">Kategori</label>
                   <input
@@ -1076,7 +1076,7 @@ export const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700">Jumlah Stok</label>
                   <input
@@ -1131,8 +1131,8 @@ export const Dashboard = () => {
 
       {/* MODAL: TRANSAKSI MASUK / KELUAR */}
       {isTransModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs px-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-900">Catat Mutasi Stok</h3>
               <button onClick={() => setIsTransModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
@@ -1203,8 +1203,8 @@ export const Dashboard = () => {
 
       {/* MODAL: TAMBAH SUPPLIER */}
       {isSupplierModalOpen && userRole === 'admin' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs px-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-900">Tambah Supplier Baru</h3>
               <button onClick={() => setIsSupplierModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
@@ -1239,6 +1239,7 @@ export const Dashboard = () => {
                 <input
                   type="text"
                   value={supAddrInput}
+                  onChange={(e) => setSupAddrInput,
                   onChange={(e) => setSupAddrInput(e.target.value)}
                   placeholder="Contoh: Jl. Ahmad Yani No. 10"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
