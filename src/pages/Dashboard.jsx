@@ -6,7 +6,6 @@ import {
   Package, Layers, Plus, AlertCircle, CheckCircle, 
   X, Download, TrendingUp, Truck, FileText, Printer, CheckSquare, Camera 
 } from 'lucide-react'
-
 // Import Sub-Komponen Terpisah
 import { OverviewTab } from '../components/dashboard/OverviewTab'
 import { InventoryTab } from '../components/dashboard/InventoryTab'
@@ -23,17 +22,15 @@ export const Dashboard = () => {
     if (currentUser.email === 'staff@email.com') return 'staff'
     return currentUser?.user_metadata?.role || 'staff'
   }
-
+  
   const [currentRole, setCurrentRole] = useState(determineRole(user))
   const [activeTab, setActiveTab] = useState('overview')
-
   const [items, setItems] = useState([])
   const [transactions, setTransactions] = useState([])
   const [suppliers, setSuppliers] = useState([
     { id: 1, name: 'PT Sumber Makmur Jaya', phone: '08123456789', address: 'Jl. Industri No. 12, Jakarta' },
     { id: 2, name: 'CV Berkah Sentosa', phone: '08987654321', address: 'Jl. Raya Darmo No. 45, Surabaya' }
   ])
-
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -45,7 +42,7 @@ export const Dashboard = () => {
   const [sortBy, setSortBy] = useState('newest')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
-
+  
   // State Modal & Kamera Scanner
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
@@ -53,7 +50,6 @@ export const Dashboard = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [scannerResult, setScannerResult] = useState('')
   const videoRef = useRef(null)
-
   const [editingId, setEditingId] = useState(null)
   
   const [namaBarang, setNamaBarang] = useState('')
@@ -64,16 +60,13 @@ export const Dashboard = () => {
   const [lokasiRak, setLokasiRak] = useState('')
   const [supplierName, setSupplierName] = useState('')
   const [submitting, setSubmitting] = useState(false)
-
   const [supNameInput, setSupNameInput] = useState('')
   const [supPhoneInput, setSupPhoneInput] = useState('')
   const [supAddrInput, setSupAddrInput] = useState('')
-
   const [transItem, setTransItem] = useState('')
   const [transType, setTransType] = useState('MASUK')
   const [transQty, setTransQty] = useState('')
   const [transNotes, setTransNotes] = useState('')
-
   const [opnameInputs, setOpnameInputs] = useState({})
 
   useEffect(() => {
@@ -87,10 +80,8 @@ export const Dashboard = () => {
       } catch (err) {
         console.error('Gagal memperbarui sesi role:', err.message)
       }
-
       fetchData()
     }
-
     initDashboard()
 
     const channel = supabase
@@ -136,9 +127,13 @@ export const Dashboard = () => {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const dataItems = await itemService.getItems()
+      const activeUser = user || (await supabase.auth.getUser()).data?.user
+      const userId = activeUser?.id
+
+      // Ambil data item HANYA milik user yang sedang login (jika user baru daftar, hasilnya kosong / dari 0)
+      const dataItems = await itemService.getItems(userId)
       setItems(dataItems || [])
-      await fetchTransactions()
+      await fetchTransactions(activeUser?.email)
     } catch (err) {
       setError('Gagal memuat data inventori: ' + err.message)
     } finally {
@@ -146,13 +141,16 @@ export const Dashboard = () => {
     }
   }
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (userEmail) => {
     try {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const emailQuery = userEmail || user?.email
+      let query = supabase.from('transactions').select('*').order('created_at', { ascending: false })
       
+      if (emailQuery) {
+        query = query.eq('user_email', emailQuery)
+      }
+
+      const { data, error } = await query
       if (!error && data) {
         setTransactions(data)
       }
@@ -166,7 +164,6 @@ export const Dashboard = () => {
       setError('Akses ditolak: Staff tidak diizinkan menambah atau mengubah data produk.')
       return
     }
-
     if (item) {
       setEditingId(item.id)
       setNamaBarang(item.title || '')
@@ -200,12 +197,11 @@ export const Dashboard = () => {
       setError('Akses ditolak: Staff tidak memiliki izin untuk menyimpan data produk.')
       return
     }
-
     setError('')
     setSuccess('')
     setSubmitting(true)
-
     try {
+      const activeUser = user || (await supabase.auth.getUser()).data?.user
       const payload = {
         title: namaBarang,
         category: kategori.trim() || 'Lainnya',
@@ -214,9 +210,8 @@ export const Dashboard = () => {
         sku: sku || 'SKU-GENERAL',
         location: lokasiRak || 'Gudang Utama',
         supplier: supplierName || 'Umum',
-        user_id: user?.id
+        user_id: activeUser?.id
       }
-
       if (editingId) {
         await itemService.updateItem(editingId, payload)
         setSuccess('Data barang berhasil diperbarui.')
@@ -229,10 +224,9 @@ export const Dashboard = () => {
             type: 'MASUK',
             qty: parseInt(stok, 10) || 0,
             notes: 'Stok Awal / Input Produk Baru',
-            user_email: user?.email || 'admin@email.com'
+            user_email: activeUser?.email || 'admin@email.com'
           }
         ])
-
         setSuccess('Barang baru berhasil ditambahkan ke gudang.')
       }
       
@@ -266,19 +260,16 @@ export const Dashboard = () => {
   const handleAddTransaction = async (e) => {
     e.preventDefault()
     if (!transItem || !transQty) return
-
     const qtyNum = parseInt(transQty, 10)
     const targetItem = items.find(i => String(i.id) === String(transItem))
     if (!targetItem) return
-
     if (transType === 'KELUAR' && targetItem.stock < qtyNum) {
       setError('Stok tidak mencukupi untuk pengeluaran barang ini!')
       return
     }
-
     const newStock = transType === 'MASUK' ? targetItem.stock + qtyNum : targetItem.stock - qtyNum
-
     try {
+      const activeUser = user || (await supabase.auth.getUser()).data?.user
       await itemService.updateItem(targetItem.id, { ...targetItem, stock: newStock })
       
       await supabase.from('transactions').insert([
@@ -287,10 +278,9 @@ export const Dashboard = () => {
           type: transType,
           qty: qtyNum,
           notes: transNotes || 'Mutasi Manual Gudang',
-          user_email: user?.email || 'user'
+          user_email: activeUser?.email || 'user'
         }
       ])
-
       await fetchData()
       setSuccess(`Transaksi ${transType} berhasil dicatat dan disimpan ke database.`)
       setIsTransModalOpen(false)
@@ -307,29 +297,25 @@ export const Dashboard = () => {
       setError(`Masukkan jumlah stok fisik yang valid untuk ${item.title}`)
       return
     }
-
     const physicalQty = parseInt(physicalVal, 10)
     const systemQty = item.stock || 0
     const diff = physicalQty - systemQty
-
     if (diff === 0) {
       setSuccess(`Stok ${item.title} sudah sinkron (tidak ada selisih).`)
       return
     }
-
     try {
+      const activeUser = user || (await supabase.auth.getUser()).data?.user
       await itemService.updateItem(item.id, { ...item, stock: physicalQty })
-
       await supabase.from('transactions').insert([
         {
           item_title: item.title,
           type: 'OPNAME',
           qty: Math.abs(diff),
           notes: `Stock Opname: Sistem=${systemQty}, Fisik=${physicalQty} (Selisih: ${diff > 0 ? '+' : ''}${diff})`,
-          user_email: user?.email || 'user'
+          user_email: activeUser?.email || 'user'
         }
       ])
-
       await fetchData()
       setSuccess(`Stock Opname untuk ${item.title} berhasil disimpan. Selisih dicatat: ${diff > 0 ? '+' : ''}${diff}`)
       setOpnameInputs({ ...opnameInputs, [item.id]: '' })
@@ -359,18 +345,16 @@ export const Dashboard = () => {
     setSuccess('Supplier baru berhasil ditambahkan.')
   }
 
-  // FITUR CETAK LAPORAN PDF (DINAMIS SESUAI KATEGORI/TAB AKTIF)
+  // FITUR CETAK LAPORAN PDF
   const handlePrintReport = () => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
       alert('Pop-up diblokir oleh browser. Harap izinkan pop-up untuk mencetak laporan.')
       return
     }
-
     const printDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
     let title = ''
     let contentHtml = ''
-
     if (activeTab === 'overview') {
       title = 'Laporan Ringkasan & Analitik Gudang'
       contentHtml = `
@@ -381,17 +365,6 @@ export const Dashboard = () => {
           <tr><td>Stok Menipis (&lt; 2)</td><td><strong>${lowStockCount} Item</strong></td></tr>
           <tr><td>Stok Habis (0)</td><td><strong>${outOfStockCount} Item</strong></td></tr>
           <tr><td>Total Supplier Terdaftar</td><td><strong>${suppliers.length} Vendor</strong></td></tr>
-        </table>
-        <h3 style="color: #1e1b4b; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; margin-top: 25px;">Distribusi Kategori Produk</h3>
-        <table>
-          <thead><tr><th>Kategori</th><th>Jumlah Produk</th><th>Persentase</th></tr></thead>
-          <tbody>
-            ${uniqueCategories.filter(c => c !== 'Semua').map(cat => {
-              const count = items.filter(i => i.category === cat).length
-              const pct = totalItemsCount > 0 ? Math.round((count / totalItemsCount) * 100) : 0
-              return `<tr><td>${cat}</td><td>${count} Produk</td><td>${pct}%</td></tr>`
-            }).join('')}
-          </tbody>
         </table>
       `
     } else if (activeTab === 'inventory') {
@@ -511,7 +484,6 @@ export const Dashboard = () => {
         </table>
       `
     }
-
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -550,17 +522,15 @@ export const Dashboard = () => {
         </body>
       </html>
     `
-
     printWindow.document.write(htmlContent)
     printWindow.document.close()
   }
 
-  // FITUR EKSPOR CSV (DINAMIS SESUAI KATEGORI/TAB AKTIF)
+  // EKSPOR CSV
   const handleExportCSV = () => {
     let headers = []
     let csvRows = []
     let filename = ''
-
     if (activeTab === 'overview') {
       headers = ['Metrik Ringkasan', 'Nilai']
       csvRows.push(headers.join(';'))
@@ -645,7 +615,6 @@ export const Dashboard = () => {
       })
       filename = `daftar_supplier_${new Date().toISOString().slice(0, 10)}.csv`
     }
-
     const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -663,9 +632,7 @@ export const Dashboard = () => {
       alert('Pop-up diblokir oleh browser.')
       return
     }
-
     const txDateFormatted = tx.created_at ? new Date(tx.created_at).toLocaleString('id-ID') : new Date().toLocaleString()
-
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -712,7 +679,6 @@ export const Dashboard = () => {
                 <td>${tx.user_email || user?.email || 'Admin'}</td>
               </tr>
             </table>
-
             <div class="footer">
               <p>Disetujui Oleh,</p>
               <br><br>
@@ -724,7 +690,6 @@ export const Dashboard = () => {
         </body>
       </html>
     `
-
     printWindow.document.write(htmlContent)
     printWindow.document.close()
   }
@@ -734,7 +699,6 @@ export const Dashboard = () => {
   const totalValuation = items.reduce((acc, item) => acc + ((item.stock || 0) * (item.price || 0)), 0)
   const lowStockCount = items.filter(item => (item.stock || 0) > 0 && (item.stock || 0) < 2).length
   const outOfStockCount = items.filter(item => (item.stock || 0) === 0).length
-
   const uniqueCategories = ['Semua', ...new Set(items.map(item => item.category).filter(Boolean))]
 
   // Filtering & Searching & Sorting Logic
@@ -750,7 +714,6 @@ export const Dashboard = () => {
     } else if (stockStatusFilter === 'out') {
       matchStatus = qty === 0
     }
-
     return matchTitle && matchCategory && matchStatus
   })
 
@@ -763,7 +726,6 @@ export const Dashboard = () => {
     } else if (sortBy === 'price-desc') {
       return (b.price || 0) - (a.price || 0)
     } else {
-      // newest
       return new Date(b.created_at || 0) - new Date(a.created_at || 0)
     }
   })
@@ -860,7 +822,7 @@ export const Dashboard = () => {
         </div>
       )}
 
-      {/* Navigation Tabs (Scrollable on Mobile) */}
+      {/* Navigation Tabs */}
       <div className="flex space-x-2 border-b border-slate-200 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('overview')}
@@ -1135,7 +1097,7 @@ export const Dashboard = () => {
         </div>
       )}
 
-      {/* Modal Transaksi Barang Masuk/Keluar */}
+      {/* Modal Transaksi */}
       {isTransModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
