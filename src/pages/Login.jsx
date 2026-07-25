@@ -28,12 +28,12 @@ export function Login() {
     if (loginError) {
       setError(loginError.message)
     } else {
-      navigate('/') // Berhasil login, diarahkan ke halaman utama
+      navigate('/dashboard') // Berhasil login, diarahkan ke dashboard
     }
     setLoading(false)
   }
 
-  // Fungsi Kirim Tautan Lupa Password ke Email Customer
+  // Fungsi Kirim Tautan Lupa Password ke Email Customer (Diperbarui dengan URL pasti)
   const handleForgotPassword = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -41,7 +41,7 @@ export function Login() {
     setMessage('')
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/update-password',
+      redirectTo: 'https://sistem-inventori-mu.vercel.app/update-password',
     })
 
     if (resetError) {
