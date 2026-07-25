@@ -1,19 +1,34 @@
 import { supabase } from './supabase'
 
 export const itemService = {
-  // Mengambil item hanya milik user yang sedang login
+  // Mengambil item otomatis berdasarkan user yang sedang login
   async getItems(userId) {
+    let targetUserId = userId
+    if (!targetUserId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      targetUserId = user?.id
+    }
+
     let query = supabase.from('items').select('*')
-    if (userId) {
-      query = query.eq('user_id', userId)
+    if (targetUserId) {
+      query = query.eq('user_id', targetUserId)
     }
     const { data, error } = await query.order('created_at', { ascending: false })
     if (error) throw error
     return data
   },
 
+  // Menyimpan item baru dengan menyisipkan user_id secara otomatis dari sesi aktif
   async createItem(item) {
-    const { data, error } = await supabase.from('items').insert([item]).select()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Pengguna tidak terautentikasi. Silakan login kembali.')
+
+    const itemToInsert = {
+      ...item,
+      user_id: user.id
+    }
+
+    const { data, error } = await supabase.from('items').insert([itemToInsert]).select()
     if (error) throw error
     return data[0]
   },

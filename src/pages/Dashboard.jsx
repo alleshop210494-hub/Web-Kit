@@ -18,9 +18,9 @@ export const Dashboard = () => {
   
   const determineRole = (currentUser) => {
     if (!currentUser?.email) return 'staff'
-    if (currentUser.email === 'admin@email.com') return 'admin'
+    // Jika email khusus staff, tetapkan sebagai staff. Akun lainnya otomatis menjadi admin untuk inventori masing-masing.
     if (currentUser.email === 'staff@email.com') return 'staff'
-    return currentUser?.user_metadata?.role || 'staff'
+    return 'admin'
   }
   
   const [currentRole, setCurrentRole] = useState(determineRole(user))
@@ -130,7 +130,7 @@ export const Dashboard = () => {
       const activeUser = user || (await supabase.auth.getUser()).data?.user
       const userId = activeUser?.id
 
-      // Ambil data item HANYA milik user yang sedang login (jika user baru daftar, hasilnya kosong / dari 0)
+      // Ambil data item HANYA milik user yang sedang login
       const dataItems = await itemService.getItems(userId)
       setItems(dataItems || [])
       await fetchTransactions(activeUser?.email)
