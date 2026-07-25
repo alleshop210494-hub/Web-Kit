@@ -10,9 +10,10 @@ export function AppRoutes() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Mendeteksi jika link email membuka token pemulihan password
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
+        // Tandai bahwa user sedang dalam mode reset password
+        sessionStorage.setItem('isResettingPassword', 'true')
         navigate('/update-password')
       }
     })
