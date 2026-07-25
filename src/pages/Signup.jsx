@@ -1,62 +1,76 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../services/supabase'
-import { Lock, Mail, AlertCircle, CheckCircle } from 'lucide-react'
+import { Lock, Mail, AlertCircle, CheckCircle, UserPlus } from 'lucide-react'
 
-export function Signup() {
+export const Signup = () => {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
-  const navigate = useNavigate()
+  const [success, setSuccess] = useState('')
 
-  const handleSignup = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault()
-    setLoading(true)
     setError('')
-    setMessage('')
+    setSuccess('')
+    setLoading(true)
 
-    const { data, error: signupError } = await supabase.auth.signUp({
-      email,
-      password,
-    })
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      })
+      if (error) throw error
 
-    if (signupError) {
-      setError(signupError.message)
-    } else {
-      setMessage('Registrasi berhasil! Akun Anda telah terhubung ke database. Mengalihkan ke halaman login...')
+      setSuccess('Pendaftaran berhasil! Mengalihkan ke halaman login...')
+      
       setTimeout(() => {
-        navigate('/') // Dialihkan ke halaman login setelah sukses
-      }, 3000)
+        navigate('/login')
+      }, 1500)
+
+    } catch (err) {
+      setError(err.message || 'Terjadi kesalahan saat mendaftarkan akun.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-8 space-y-6">
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-xl border border-slate-200 space-y-6">
         
-        <div className="text-center space-y-1">
-          <h2 className="text-2xl font-bold text-slate-900">Daftar Akun Baru</h2>
-          <p className="text-sm text-slate-500">Buat akun untuk mulai menggunakan aplikasi</p>
+        {/* Header Title */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 mb-2">
+            <UserPlus className="w-6 h-6" />
+          </div>
+          <h2 className="text-2xl font-extrabold text-slate-900">
+            Daftar Akun Sistem
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500">
+            Buat akun baru untuk mulai menggunakan sistem inventory
+          </p>
         </div>
 
+        {/* Error / Success Notifications */}
         {error && (
-          <div className="flex items-center space-x-2 bg-rose-50 text-rose-700 p-3 rounded-xl text-xs">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <div className="flex items-center space-x-2 bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-xs sm:text-sm">
+            <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {message && (
-          <div className="flex items-center space-x-2 bg-emerald-50 text-emerald-700 p-3 rounded-xl text-xs">
-            <CheckCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{message}</span>
+        {success && (
+          <div className="flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-xs sm:text-sm">
+            <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+            <span>{success}</span>
           </div>
         )}
 
-        <form onSubmit={handleSignup} className="space-y-4">
+        {/* Form Register */}
+        <form onSubmit={handleRegister} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
             <div className="relative">
@@ -65,11 +79,11 @@ export function Signup() {
               </span>
               <input
                 type="email"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="nama@email.com"
-                className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
+                className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
               />
             </div>
           </div>
@@ -82,11 +96,11 @@ export function Signup() {
               </span>
               <input
                 type="password"
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
+                className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
               />
             </div>
           </div>
@@ -94,24 +108,23 @@ export function Signup() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-medium shadow-md transition-all"
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-sm shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center space-x-2"
           >
-            {loading ? 'Mendaftarkan...' : 'Daftar Sekarang'}
+            {loading ? 'Memproses...' : 'Daftar Sekarang'}
           </button>
-
-          <div className="text-center pt-2">
-            <p className="text-xs text-slate-500">
-              Sudah punya akun?{' '}
-              <Link to="/" className="text-indigo-600 font-semibold hover:underline">
-                Login di sini
-              </Link>
-            </p>
-          </div>
         </form>
+
+        {/* Link Kembali ke Login */}
+        <div className="text-center pt-2 border-t border-slate-100">
+          <p className="text-xs text-slate-500">
+            Sudah memiliki akun?{' '}
+            <Link to="/login" className="font-semibold text-indigo-600 hover:text-indigo-500 ml-1">
+              Login di sini
+            </Link>
+          </p>
+        </div>
 
       </div>
     </div>
   )
 }
-
-export default Signup
