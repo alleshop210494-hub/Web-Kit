@@ -4,9 +4,8 @@ import { itemService } from '../services/itemService'
 import { supabase } from '../services/supabase'
 import { 
   Package, Layers, Plus, AlertCircle, CheckCircle, 
-  X, Download, TrendingUp, Truck, FileText, Printer, CheckSquare, Camera 
+  X, Download, Upload, TrendingUp, Truck, FileText, Printer, CheckSquare, Camera 
 } from 'lucide-react'
-// Import Sub-Komponen Terpisah
 import { OverviewTab } from '../components/dashboard/OverviewTab'
 import { InventoryTab } from '../components/dashboard/InventoryTab'
 import { OpnameTab } from '../components/dashboard/OpnameTab'
@@ -16,16 +15,9 @@ import { SuppliersTab } from '../components/dashboard/SuppliersTab'
 export const Dashboard = () => {
   const { user } = useAuth()
   
-  const determineRole = (currentUser) => {
-    if (!currentUser?.email) return 'staff'
-    // Jika email khusus staff, tetapkan sebagai staff. Akun lainnya otomatis menjadi admin untuk inventori masing-masing.
-    if (currentUser.email === 'staff@email.com') return 'staff'
-    return 'admin'
-  }
-  
-  const [currentRole, setCurrentRole] = useState(determineRole(user))
   const [activeTab, setActiveTab] = useState('overview')
   const [items, setItems] = useState([])
+  const [allUserItems, setAllUserItems] = useState([]) 
   const [transactions, setTransactions] = useState([])
   const [suppliers, setSuppliers] = useState([
     { id: 1, name: 'PT Sumber Makmur Jaya', phone: '08123456789', address: 'Jl. Industri No. 12, Jakarta' },
@@ -35,21 +27,22 @@ export const Dashboard = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   
-  // State Filter, Pencarian, Sorting, & Pagination
+  // State Filter, Pencarian, & Server-Side Pagination
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Semua')
   const [stockStatusFilter, setStockStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [totalItemsCountServer, setTotalItemsCountServer] = useState(0)
   
-  // State Modal & Kamera Scanner
+  // State Modal & Kamera Scanner & File Ref
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
   const [isTransModalOpen, setIsTransModalOpen] = useState(false)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
-  const [scannerResult, setScannerResult] = useState('')
   const videoRef = useRef(null)
+  const fileInputRef = useRef(null)
   const [editingId, setEditingId] = useState(null)
   
   const [namaBarang, setNamaBarang] = useState('')
@@ -69,37 +62,43 @@ export const Dashboard = () => {
   const [transNotes, setTransNotes] = useState('')
   const [opnameInputs, setOpnameInputs] = useState({})
 
+  // Ambil data setiap kali parameter pencarian/halaman berubah
   useEffect(() => {
-    const initDashboard = async () => {
-      try {
-        const { data } = await supabase.auth.refreshSession()
-        const activeUser = data?.session?.user || user
-        if (activeUser) {
-          setCurrentRole(determineRole(activeUser))
-        }
-      } catch (err) {
-        console.error('Gagal memperbarui sesi role:', err.message)
-      }
-      fetchData()
+    fetchData()
+  }, [user, currentPage, itemsPerPage, searchTerm, selectedCategory, stockStatusFilter])
+
+  // Real-time listener yang difilter spesifik berdasarkan user_id
+  useEffect(() => {
+    let channel = null
+    const setupRealtime = async () => {
+      const activeUser = user || (await supabase.auth.getUser()).data?.user
+      const userId = activeUser?.id
+      if (!userId) return
+      channel = supabase
+        .channel(`public:items:user_id=eq.${userId}`)
+        .on(
+          'postgres_changes', 
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'items',
+            filter: `user_id=eq.${userId}` 
+          }, 
+          () => {
+            fetchData()
+          }
+        )
+        .subscribe()
     }
-    initDashboard()
-
-    const channel = supabase
-      .channel('public:inventory_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, () => {
-        fetchData()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        fetchTransactions()
-      })
-      .subscribe()
-
+    setupRealtime()
     return () => {
-      supabase.removeChannel(channel)
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
     }
   }, [user])
 
-  // Efek untuk menyalakan kamera saat modal scanner terbuka
+  // Efek kamera scanner
   useEffect(() => {
     let stream = null
     if (isScannerOpen) {
@@ -122,18 +121,26 @@ export const Dashboard = () => {
     }
   }, [isScannerOpen])
 
-  const userRole = currentRole
-
   const fetchData = async () => {
     try {
       setLoading(true)
       const activeUser = user || (await supabase.auth.getUser()).data?.user
       const userId = activeUser?.id
+      
+      const result = await itemService.getItems(
+        userId, 
+        currentPage, 
+        itemsPerPage, 
+        searchTerm, 
+        selectedCategory, 
+        stockStatusFilter
+      )
+      setItems(result.data)
+      setTotalItemsCountServer(result.count)
 
-      // Ambil data item HANYA milik user yang sedang login
-      const dataItems = await itemService.getItems(userId)
-      setItems(dataItems || [])
-      await fetchTransactions(activeUser?.email)
+      const allResult = await itemService.getItems(userId, 1, 1000, '', 'Semua', 'all')
+      setAllUserItems(allResult.data)
+      await fetchTransactions(userId)
     } catch (err) {
       setError('Gagal memuat data inventori: ' + err.message)
     } finally {
@@ -141,15 +148,12 @@ export const Dashboard = () => {
     }
   }
 
-  const fetchTransactions = async (userEmail) => {
+  const fetchTransactions = async (userId) => {
     try {
-      const emailQuery = userEmail || user?.email
       let query = supabase.from('transactions').select('*').order('created_at', { ascending: false })
-      
-      if (emailQuery) {
-        query = query.eq('user_email', emailQuery)
+      if (userId) {
+        query = query.eq('user_id', userId)
       }
-
       const { data, error } = await query
       if (!error && data) {
         setTransactions(data)
@@ -160,10 +164,6 @@ export const Dashboard = () => {
   }
 
   const handleOpenModal = (item = null) => {
-    if (userRole === 'staff') {
-      setError('Akses ditolak: Staff tidak diizinkan menambah atau mengubah data produk.')
-      return
-    }
     if (item) {
       setEditingId(item.id)
       setNamaBarang(item.title || '')
@@ -193,10 +193,6 @@ export const Dashboard = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (userRole === 'staff') {
-      setError('Akses ditolak: Staff tidak memiliki izin untuk menyimpan data produk.')
-      return
-    }
     setError('')
     setSuccess('')
     setSubmitting(true)
@@ -224,7 +220,7 @@ export const Dashboard = () => {
             type: 'MASUK',
             qty: parseInt(stok, 10) || 0,
             notes: 'Stok Awal / Input Produk Baru',
-            user_email: activeUser?.email || 'admin@email.com'
+            user_id: activeUser?.id
           }
         ])
         setSuccess('Barang baru berhasil ditambahkan ke gudang.')
@@ -240,10 +236,6 @@ export const Dashboard = () => {
   }
 
   const handleDelete = async (id) => {
-    if (userRole === 'staff') {
-      setError('Akses ditolak: Staff tidak diizinkan menghapus data barang.')
-      return
-    }
     if (!window.confirm('Apakah Anda yakin ingin menghapus barang ini?')) return
     
     setError('')
@@ -261,7 +253,7 @@ export const Dashboard = () => {
     e.preventDefault()
     if (!transItem || !transQty) return
     const qtyNum = parseInt(transQty, 10)
-    const targetItem = items.find(i => String(i.id) === String(transItem))
+    const targetItem = allUserItems.find(i => String(i.id) === String(transItem)) || items.find(i => String(i.id) === String(transItem))
     if (!targetItem) return
     if (transType === 'KELUAR' && targetItem.stock < qtyNum) {
       setError('Stok tidak mencukupi untuk pengeluaran barang ini!')
@@ -278,7 +270,7 @@ export const Dashboard = () => {
           type: transType,
           qty: qtyNum,
           notes: transNotes || 'Mutasi Manual Gudang',
-          user_email: activeUser?.email || 'user'
+          user_id: activeUser?.id
         }
       ])
       await fetchData()
@@ -313,11 +305,11 @@ export const Dashboard = () => {
           type: 'OPNAME',
           qty: Math.abs(diff),
           notes: `Stock Opname: Sistem=${systemQty}, Fisik=${physicalQty} (Selisih: ${diff > 0 ? '+' : ''}${diff})`,
-          user_email: activeUser?.email || 'user'
+          user_id: activeUser?.id
         }
       ])
       await fetchData()
-      setSuccess(`Stock Opname untuk ${item.title} berhasil disimpan. Selisih dicatat: ${diff > 0 ? '+' : ''}${diff}`)
+      setSuccess(`Stock Opname untuk ${item.title} berhasil disimpan.`)
       setOpnameInputs({ ...opnameInputs, [item.id]: '' })
     } catch (err) {
       setError('Gagal memproses Stock Opname: ' + err.message)
@@ -326,10 +318,6 @@ export const Dashboard = () => {
 
   const handleAddSupplier = (e) => {
     e.preventDefault()
-    if (userRole === 'staff') {
-      setError('Akses ditolak: Staff tidak diizinkan menambah supplier.')
-      return
-    }
     if (!supNameInput) return
     const newSup = {
       id: Date.now(),
@@ -345,137 +333,269 @@ export const Dashboard = () => {
     setSuccess('Supplier baru berhasil ditambahkan.')
   }
 
-  // FITUR CETAK LAPORAN PDF
+  const handleImportCSV = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const text = event.target.result
+        const lines = text.split('\n').filter(line => line.trim() !== '')
+        if (lines.length <= 1) {
+          setError('File CSV kosong atau tidak memiliki data baris.')
+          return
+        }
+
+        const firstLine = lines[0]
+        const separator = firstLine.includes(';') ? ';' : ','
+        const headers = firstLine.split(separator).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase())
+
+        const getIndex = (keywords) => {
+          return headers.findIndex(h => keywords.some(keyword => h.includes(keyword)))
+        }
+
+        const titleIdx = getIndex(['nama', 'title', 'barang', 'product', 'item', 'produk'])
+        const catIdx = getIndex(['kategori', 'category', 'jenis'])
+        const stockIdx = getIndex(['stok', 'stock', 'qty', 'jumlah'])
+        const priceIdx = getIndex(['harga', 'price', 'nilai', 'cost', 'satuan'])
+        const skuIdx = getIndex(['sku', 'kode', 'code'])
+        const locIdx = getIndex(['lokasi', 'location', 'rak', 'warehouse'])
+        const supIdx = getIndex(['supplier', 'pemasok', 'vendor'])
+
+        if (titleIdx === -1) {
+          setError('Format CSV tidak dikenali: Kolom nama barang tidak ditemukan di baris header.')
+          return
+        }
+
+        const activeUser = user || (await supabase.auth.getUser()).data?.user
+        if (!activeUser) {
+          setError('Pengguna tidak terautentikasi. Silakan login kembali.')
+          return
+        }
+
+        let successCount = 0
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i]
+          const cols = line.split(separator).map(col => col.replace(/^"|"$/g, '').trim())
+          
+          const titleVal = titleIdx !== -1 ? cols[titleIdx] : ''
+          if (!titleVal) continue
+
+          const payload = {
+            title: titleVal,
+            category: (catIdx !== -1 && cols[catIdx]) ? cols[catIdx] : 'Lainnya',
+            stock: (stockIdx !== -1 && cols[stockIdx]) ? (parseInt(cols[stockIdx], 10) || 0) : 0,
+            price: (priceIdx !== -1 && cols[priceIdx]) ? (parseFloat(cols[priceIdx]) || 0) : 0,
+            sku: (skuIdx !== -1 && cols[skuIdx]) ? cols[skuIdx] : 'SKU-' + Math.floor(1000 + Math.random() * 9000),
+            location: (locIdx !== -1 && cols[locIdx]) ? cols[locIdx] : 'Gudang Utama',
+            supplier: (supIdx !== -1 && cols[supIdx]) ? cols[supIdx] : 'Umum',
+            user_id: activeUser.id
+          }
+
+          await itemService.createItem(payload)
+          successCount++
+        }
+
+        await fetchData()
+        setSuccess(`Berhasil mengimpor ${successCount} produk dari file CSV.`)
+      } catch (err) {
+        setError('Gagal memproses file CSV: ' + err.message)
+      } finally {
+        e.target.value = ''
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const totalItemsCount = allUserItems.length
+  const totalValuation = allUserItems.reduce((acc, item) => acc + ((item.stock || 0) * (item.price || 0)), 0)
+  const lowStockCount = allUserItems.filter(item => (item.stock || 0) > 0 && (item.stock || 0) < 2).length
+  const outOfStockCount = allUserItems.filter(item => (item.stock || 0) === 0).length
+  const uniqueCategories = ['Semua', ...new Set(allUserItems.map(item => item.category).filter(Boolean))]
+  const totalPages = Math.ceil(totalItemsCountServer / itemsPerPage) || 1
+
+  // Format PDF Cetak Profesional Otomatis Sesuai Tab Aktif
   const handlePrintReport = () => {
     const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      alert('Pop-up diblokir oleh browser. Harap izinkan pop-up untuk mencetak laporan.')
-      return
-    }
-    const printDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-    let title = ''
-    let contentHtml = ''
+    if (!printWindow) return
+
+    const currentDate = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    })
+
+    let reportTitle = 'Laporan Inventori Gudang'
+    let contentHTML = ''
+
     if (activeTab === 'overview') {
-      title = 'Laporan Ringkasan & Analitik Gudang'
-      contentHtml = `
-        <h3 style="color: #1e1b4b; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px;">Ringkasan Utama Aset</h3>
-        <table>
-          <tr><td>Total Jenis Produk</td><td><strong>${totalItemsCount} Item</strong></td></tr>
-          <tr><td>Valuasi Aset Gudang</td><td><strong>Rp ${totalValuation.toLocaleString('id-ID')}</strong></td></tr>
-          <tr><td>Stok Menipis (&lt; 2)</td><td><strong>${lowStockCount} Item</strong></td></tr>
-          <tr><td>Stok Habis (0)</td><td><strong>${outOfStockCount} Item</strong></td></tr>
-          <tr><td>Total Supplier Terdaftar</td><td><strong>${suppliers.length} Vendor</strong></td></tr>
-        </table>
-      `
-    } else if (activeTab === 'inventory') {
-      title = 'Laporan Manajemen Produk & Inventori'
-      contentHtml = `
+      reportTitle = 'Laporan Ringkasan & Analitik Eksekutif'
+      contentHTML = `
+        <div class="summary-container">
+          <div class="summary-card">
+            <div class="summary-title">Total Jenis Produk</div>
+            <div class="summary-value">${totalItemsCount} Item</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">Total Valuasi Aset</div>
+            <div class="summary-value">Rp ${totalValuation.toLocaleString('id-ID')}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">Stok Menipis</div>
+            <div class="summary-value">${lowStockCount} Item</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">Stok Habis</div>
+            <div class="summary-value">${outOfStockCount} Item</div>
+          </div>
+        </div>
+        <h3 style="margin-top: 25px; margin-bottom: 10px; font-size: 11px; text-transform: uppercase; color: #0f172a; border-bottom: 2px solid #94a3b8; padding-bottom: 4px;">Rincian Valuasi Berdasarkan Kategori</h3>
         <table>
           <thead>
             <tr>
-              <th>No</th>
-              <th>SKU</th>
-              <th>Nama Barang</th>
-              <th>Kategori</th>
-              <th>Stok</th>
-              <th class="text-right">Harga Satuan</th>
-              <th>Lokasi Rak</th>
-              <th>Supplier</th>
+              <th style="width: 8%;" class="text-center">No</th>
+              <th style="width: 42%;">Kategori Produk</th>
+              <th style="width: 20%;" class="text-center">Jumlah Jenis</th>
+              <th style="width: 30%;" class="text-right">Total Valuasi Aset</th>
             </tr>
           </thead>
           <tbody>
-            ${filteredItems.map((item, index) => `
+            ${uniqueCategories.filter(c => c !== 'Semua').map((cat, index) => {
+              const catItems = allUserItems.filter(i => i.category === cat)
+              const catValuation = catItems.reduce((acc, i) => acc + ((i.stock || 0) * (i.price || 0)), 0)
+              return `
+                <tr>
+                  <td class="text-center">${index + 1}</td>
+                  <td><b>${cat}</b></td>
+                  <td class="text-center">${catItems.length} Item</td>
+                  <td class="text-right">Rp ${catValuation.toLocaleString('id-ID')}</td>
+                </tr>
+              `
+            }).join('')}
+          </tbody>
+        </table>
+      `
+    } else if (activeTab === 'inventory') {
+      reportTitle = 'Laporan Manajemen Produk Inventori'
+      contentHTML = `
+        <div class="summary-container" style="grid-template-columns: repeat(2, 1fr);">
+          <div class="summary-card">
+            <div class="summary-title">Total Keseluruhan Item</div>
+            <div class="summary-value">${totalItemsCount} Produk</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">Total Nilai Valuasi Gudang</div>
+            <div class="summary-value">Rp ${totalValuation.toLocaleString('id-ID')}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 5%;" class="text-center">No</th>
+              <th style="width: 16%;">SKU / Kode</th>
+              <th style="width: 29%;">Nama Produk</th>
+              <th style="width: 15%;">Kategori</th>
+              <th style="width: 10%;" class="text-center">Stok</th>
+              <th style="width: 15%;" class="text-right">Harga Satuan</th>
+              <th style="width: 10%;">Lokasi Rak</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allUserItems.map((item, index) => `
               <tr>
-                <td>${index + 1}</td>
-                <td>${item.sku || '-'}</td>
-                <td><strong>${item.title}</strong></td>
+                <td class="text-center">${index + 1}</td>
+                <td><b>${item.sku || '-'}</b></td>
+                <td>${item.title || ''}</td>
                 <td>${item.category || 'Lainnya'}</td>
-                <td>${item.stock || 0} Unit</td>
-                <td class="text-right">Rp ${Number(item.price || 0).toLocaleString('id-ID')}</td>
+                <td class="text-center"><b>${item.stock || 0}</b></td>
+                <td class="text-right">Rp ${(item.price || 0).toLocaleString('id-ID')}</td>
                 <td>${item.location || '-'}</td>
-                <td>${item.supplier || '-'}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       `
     } else if (activeTab === 'opname') {
-      title = 'Laporan Lembar Kerja Stock Opname (Audit Fisik)'
-      contentHtml = `
+      reportTitle = 'Lembar Kerja Stock Opname Gudang'
+      contentHTML = `
+        <p style="margin-bottom: 15px; color: #475569; font-size: 10px;">Lembar audit fisik inventori gudang. Harap catat hasil perhitungan stok fisik di kolom yang tersedia.</p>
         <table>
           <thead>
             <tr>
-              <th>No</th>
-              <th>SKU</th>
-              <th>Nama Barang</th>
-              <th>Kategori</th>
-              <th>Lokasi Rak</th>
-              <th>Stok Sistem</th>
-              <th>Stok Fisik Aktual</th>
+              <th style="width: 5%;" class="text-center">No</th>
+              <th style="width: 15%;">SKU</th>
+              <th style="width: 32%;">Nama Produk</th>
+              <th style="width: 12%;" class="text-center">Stok Sistem</th>
+              <th style="width: 13%;" class="text-center">Stok Fisik</th>
+              <th style="width: 13%;" class="text-center">Selisih (+/-)</th>
+              <th style="width: 10%;" class="text-center">Paraf</th>
             </tr>
           </thead>
           <tbody>
-            ${items.map((item, index) => `
+            ${allUserItems.map((item, index) => `
               <tr>
-                <td>${index + 1}</td>
-                <td>${item.sku || '-'}</td>
-                <td><strong>${item.title}</strong></td>
-                <td>${item.category || 'Lainnya'}</td>
-                <td>${item.location || '-'}</td>
-                <td>${item.stock || 0} Unit</td>
-                <td>__________________</td>
+                <td class="text-center">${index + 1}</td>
+                <td><b>${item.sku || '-'}</b></td>
+                <td>${item.title || ''}</td>
+                <td class="text-center"><b>${item.stock || 0}</b></td>
+                <td style="background: #fff;"></td>
+                <td></td>
+                <td></td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       `
     } else if (activeTab === 'transactions') {
-      title = 'Laporan Riwayat Mutasi & Transaksi Gudang'
-      contentHtml = `
+      reportTitle = 'Laporan Riwayat Mutasi Transaksi Gudang'
+      contentHTML = `
         <table>
           <thead>
             <tr>
-              <th>No</th>
-              <th>Waktu & Tanggal</th>
-              <th>Jenis Mutasi</th>
-              <th>Nama Produk</th>
-              <th>Jumlah Unit</th>
-              <th>Keterangan</th>
-              <th>Operator</th>
+              <th style="width: 5%;" class="text-center">No</th>
+              <th style="width: 22%;">Waktu / Tanggal</th>
+              <th style="width: 30%;">Nama Produk</th>
+              <th style="width: 13%;" class="text-center">Jenis Mutasi</th>
+              <th style="width: 10%;" class="text-center">Qty</th>
+              <th style="width: 20%;">Keterangan</th>
             </tr>
           </thead>
           <tbody>
             ${transactions.map((tx, index) => `
               <tr>
-                <td>${index + 1}</td>
-                <td>${tx.created_at ? new Date(tx.created_at).toLocaleString('id-ID') : '-'}</td>
-                <td><strong>${tx.type}</strong></td>
-                <td>${tx.item_title}</td>
-                <td>${tx.qty} Unit</td>
+                <td class="text-center">${index + 1}</td>
+                <td>${new Date(tx.created_at).toLocaleString('id-ID')}</td>
+                <td><b>${tx.item_title || '-'}</b></td>
+                <td class="text-center">
+                  <span style="font-weight: bold; color: ${tx.type === 'MASUK' ? '#16a34a' : tx.type === 'KELUAR' ? '#dc2626' : '#2563eb'};">
+                    ${tx.type}
+                  </span>
+                </td>
+                <td class="text-center"><b>${tx.qty}</b></td>
                 <td>${tx.notes || '-'}</td>
-                <td>${tx.user_email || 'Admin'}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       `
     } else if (activeTab === 'suppliers') {
-      title = 'Laporan Daftar Supplier & Vendor Resmi'
-      contentHtml = `
+      reportTitle = 'Laporan Daftar Mitra Supplier / Pemasok'
+      contentHTML = `
         <table>
           <thead>
             <tr>
-              <th>No</th>
-              <th>Nama Perusahaan / Supplier</th>
-              <th>Nomor Telepon</th>
-              <th>Alamat</th>
+              <th style="width: 6%;" class="text-center">No</th>
+              <th style="width: 32%;">Nama Supplier / Vendor</th>
+              <th style="width: 24%;">Nomor Telepon</th>
+              <th style="width: 38%;">Alamat Lengkap</th>
             </tr>
           </thead>
           <tbody>
             ${suppliers.map((sup, index) => `
               <tr>
-                <td>${index + 1}</td>
-                <td><strong>${sup.name}</strong></td>
+                <td class="text-center">${index + 1}</td>
+                <td><b>${sup.name}</b></td>
                 <td>${sup.phone || '-'}</td>
                 <td>${sup.address || '-'}</td>
               </tr>
@@ -484,142 +604,186 @@ export const Dashboard = () => {
         </table>
       `
     }
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
-        <head>
-          <title>${title} - ${printDate}</title>
-          <style>
-            body { font-family: Arial, sans-serif; color: #333; margin: 20px; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-            .header h1 { margin: 0; font-size: 20px; color: #1e1b4b; }
-            .header p { margin: 5px 0 0; font-size: 12px; color: #666; }
-            .meta-info { margin-bottom: 15px; font-size: 12px; background: #f8fafc; padding: 10px; border-radius: 6px; display: flex; justify-content: space-between; }
-            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
-            th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
-            th { background-color: #f1f5f9; color: #0f172a; }
-            .text-right { text-align: right; }
-            .footer { margin-top: 30px; text-align: right; font-size: 12px; }
-            @media print { button { display: none; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>ENTERPRISE INVENTORY MANAGEMENT SYSTEM</h1>
-            <p>${title}</p>
+      <head>
+        <title>${reportTitle}</title>
+        <style>
+          body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #1e293b;
+            margin: 0;
+            padding: 30px;
+            font-size: 11px;
+            line-height: 1.5;
+          }
+          .header {
+            border-bottom: 3px double #0f172a;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+          }
+          .company-info h1 {
+            font-size: 18px;
+            margin: 0 0 4px 0;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .company-info p {
+            margin: 0;
+            color: #64748b;
+            font-size: 10px;
+          }
+          .report-meta {
+            text-align: right;
+          }
+          .report-meta h2 {
+            font-size: 13px;
+            margin: 0 0 4px 0;
+            color: #334155;
+            text-transform: uppercase;
+          }
+          .report-meta p {
+            margin: 0;
+            color: #64748b;
+            font-size: 10px;
+          }
+          .summary-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 25px;
+          }
+          .summary-card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 10px 12px;
+            border-radius: 4px;
+          }
+          .summary-title {
+            font-size: 9px;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: bold;
+            margin-bottom: 4px;
+          }
+          .summary-value {
+            font-size: 13px;
+            font-weight: bold;
+            color: #0f172a;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+          }
+          th, td {
+            border: 1px solid #94a3b8;
+            padding: 7px 9px;
+            text-align: left;
+          }
+          th {
+            background-color: #e2e8f0;
+            color: #0f172a;
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+          }
+          td {
+            font-size: 10px;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .text-center {
+            text-align: center;
+          }
+          .footer {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+          }
+          .footer-note {
+            font-size: 9px;
+            color: #64748b;
+          }
+          .signature-box {
+            text-align: center;
+            width: 180px;
+          }
+          .signature-space {
+            height: 55px;
+          }
+          @media print {
+            body { padding: 0; }
+            button { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="company-info">
+            <h1>PT. Enterprise Inventory Control</h1>
+            <p>Pusat Manajemen Logistik & Pergudangan Terpadu</p>
           </div>
-          <div class="meta-info">
-            <div><strong>Tanggal Cetak:</strong> ${printDate}</div>
-            <div><strong>Dicetak Oleh:</strong> ${user?.email || 'Admin'}</div>
+          <div class="report-meta">
+            <h2>${reportTitle}</h2>
+            <p>Dicetak Pada: ${currentDate}</p>
           </div>
-          ${contentHtml}
-          <div class="footer">
-            <br><br>
-            <p>( __________________________ )</p>
-            <p>Kepala Gudang / Penanggung Jawab</p>
+        </div>
+
+        ${contentHTML}
+
+        <div class="footer">
+          <div class="footer-note">
+            <p>Dokumen ini dicetak otomatis secara elektronik dari sistem Enterprise Inventory.<br/>Sah dan berlaku tanpa tanda tangan basah apabila terverifikasi database.</p>
           </div>
-          <script>window.onload = function() { window.print(); }</script>
-        </body>
+          <div class="signature-box">
+            <p>Mengetahui,</p>
+            <div class="signature-space"></div>
+            <p><b>Administrator / Kepala Gudang</b></p>
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          }
+        </script>
+      </body>
       </html>
     `
+
     printWindow.document.write(htmlContent)
     printWindow.document.close()
   }
 
-  // EKSPOR CSV
   const handleExportCSV = () => {
-    let headers = []
-    let csvRows = []
-    let filename = ''
-    if (activeTab === 'overview') {
-      headers = ['Metrik Ringkasan', 'Nilai']
-      csvRows.push(headers.join(';'))
-      csvRows.push(`"Total Jenis Produk";${totalItemsCount}`)
-      csvRows.push(`"Valuasi Aset Gudang (Rp)";${totalValuation}`)
-      csvRows.push(`"Stok Menipis (< 2)";${lowStockCount}`)
-      csvRows.push(`"Stok Habis (0)";${outOfStockCount}`)
-      csvRows.push(`"Total Supplier Terdaftar";${suppliers.length}`)
-      filename = `ringkasan_analitik_${new Date().toISOString().slice(0, 10)}.csv`
-    } else if (activeTab === 'inventory') {
-      if (filteredItems.length === 0) {
-        setError('Tidak ada data produk untuk diekspor.')
-        return
-      }
-      headers = ['ID', 'SKU', 'Nama Barang', 'Kategori', 'Stok', 'Harga Satuan (Rp)', 'Lokasi Rak', 'Supplier', 'Tanggal Masuk']
-      csvRows.push(headers.join(';'))
-      filteredItems.forEach(item => {
-        csvRows.push([
-          item.id,
-          `"${item.sku || '-'}"`,
-          `"${(item.title || '').replace(/"/g, '""')}"`,
-          `"${(item.category || 'Lainnya')}"`,
-          item.stock || 0,
-          item.price || 0,
-          `"${item.location || '-'}"`,
-          `"${item.supplier || '-'}"`,
-          `"${new Date(item.created_at).toLocaleDateString('id-ID')}"`
-        ].join(';'))
-      })
-      filename = `manajemen_produk_${new Date().toISOString().slice(0, 10)}.csv`
-    } else if (activeTab === 'opname') {
-      if (items.length === 0) {
-        setError('Tidak ada data stock opname untuk diekspor.')
-        return
-      }
-      headers = ['ID', 'SKU', 'Nama Barang', 'Kategori', 'Lokasi Rak', 'Stok Sistem']
-      csvRows.push(headers.join(';'))
-      items.forEach(item => {
-        csvRows.push([
-          item.id,
-          `"${item.sku || '-'}"`,
-          `"${(item.title || '').replace(/"/g, '""')}"`,
-          `"${(item.category || 'Lainnya')}"`,
-          `"${item.location || '-'}"`,
-          item.stock || 0
-        ].join(';'))
-      })
-      filename = `stock_opname_${new Date().toISOString().slice(0, 10)}.csv`
-    } else if (activeTab === 'transactions') {
-      if (transactions.length === 0) {
-        setError('Tidak ada riwayat transaksi untuk diekspor.')
-        return
-      }
-      headers = ['ID', 'Waktu', 'Jenis Mutasi', 'Nama Produk', 'Jumlah Unit', 'Keterangan', 'Operator']
-      csvRows.push(headers.join(';'))
-      transactions.forEach(tx => {
-        csvRows.push([
-          tx.id,
-          `"${tx.created_at ? new Date(tx.created_at).toLocaleString('id-ID') : '-'}"`,
-          `"${tx.type}"`,
-          `"${(tx.item_title || '').replace(/"/g, '""')}"`,
-          tx.qty,
-          `"${(tx.notes || '-').replace(/"/g, '""')}"`,
-          `"${tx.user_email || 'Admin'}"`
-        ].join(';'))
-      })
-      filename = `riwayat_transaksi_${new Date().toISOString().slice(0, 10)}.csv`
-    } else if (activeTab === 'suppliers') {
-      if (suppliers.length === 0) {
-        setError('Tidak ada data supplier untuk diekspor.')
-        return
-      }
-      headers = ['ID', 'Nama Supplier', 'Nomor Telepon', 'Alamat']
-      csvRows.push(headers.join(';'))
-      suppliers.forEach(sup => {
-        csvRows.push([
-          sup.id,
-          `"${(sup.name || '').replace(/"/g, '""')}"`,
-          `"${sup.phone || '-'}"`,
-          `"${(sup.address || '-').replace(/"/g, '""')}"`
-        ].join(';'))
-      })
-      filename = `daftar_supplier_${new Date().toISOString().slice(0, 10)}.csv`
-    }
+    let headers = ['ID', 'SKU', 'Nama Barang', 'Kategori', 'Stok', 'Harga Satuan (Rp)', 'Lokasi Rak', 'Supplier']
+    let csvRows = [headers.join(';')]
+    allUserItems.forEach(item => {
+      csvRows.push([
+        item.id,
+        `"${item.sku || '-'}"`,
+        `"${(item.title || '').replace(/"/g, '""')}"`,
+        `"${(item.category || 'Lainnya')}"`,
+        item.stock || 0,
+        item.price || 0,
+        `"${item.location || '-'}"`,
+        `"${item.supplier || '-'}"`
+      ].join(';'))
+    })
     const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', filename)
+    link.setAttribute('download', `laporan_inventori_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -628,118 +792,22 @@ export const Dashboard = () => {
 
   const handlePrintInvoice = (tx) => {
     const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      alert('Pop-up diblokir oleh browser.')
-      return
-    }
-    const txDateFormatted = tx.created_at ? new Date(tx.created_at).toLocaleString('id-ID') : new Date().toLocaleString()
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Invoice Mutasi Stok - #${tx.id}</title>
-          <style>
-            body { font-family: Arial, sans-serif; color: #333; margin: 30px; }
-            .invoice-box { max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
-            .title { font-size: 20px; font-weight: bold; color: #1e1b4b; margin-bottom: 5px; }
-            .subtitle { font-size: 12px; color: #64748b; margin-bottom: 20px; }
-            .info-table { width: 100%; margin-bottom: 20px; font-size: 13px; border-collapse: collapse; }
-            .info-table td { padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
-            .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-            .badge-masuk { background: #d1fae5; color: #065f46; }
-            .badge-keluar { background: #ffe4e6; color: #9f1239; }
-            .badge-opname { background: #e0e7ff; color: #3730a3; }
-            .footer { margin-top: 40px; text-align: right; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="invoice-box">
-            <div class="title">INVOICE MUTASI STOK GUDANG</div>
-            <div class="subtitle">No. Referensi: TX-${tx.id} | Waktu: ${txDateFormatted}</div>
-            
-            <table class="info-table">
-              <tr>
-                <td><strong>Jenis Mutasi:</strong></td>
-                <td><span class="badge ${tx.type === 'MASUK' ? 'badge-masuk' : tx.type === 'KELUAR' ? 'badge-keluar' : 'badge-opname'}">${tx.type}</span></td>
-              </tr>
-              <tr>
-                <td><strong>Nama Produk:</strong></td>
-                <td><strong>${tx.item_title}</strong></td>
-              </tr>
-              <tr>
-                <td><strong>Jumlah Unit / Selisih:</strong></td>
-                <td>${tx.qty} Unit</td>
-              </tr>
-              <tr>
-                <td><strong>Keterangan / Catatan:</strong></td>
-                <td>${tx.notes || '-'}</td>
-              </tr>
-              <tr>
-                <td><strong>Operator / User:</strong></td>
-                <td>${tx.user_email || user?.email || 'Admin'}</td>
-              </tr>
-            </table>
-            <div class="footer">
-              <p>Disetujui Oleh,</p>
-              <br><br>
-              <p><strong>( ______________________ )</strong></p>
-              <p>Bagian Logistik & Inventori</p>
-            </div>
-          </div>
-          <script>window.onload = function() { window.print(); }</script>
-        </body>
-      </html>
-    `
-    printWindow.document.write(htmlContent)
+    if (!printWindow) return
+    printWindow.document.write(`<html><body><h3>Invoice #${tx.id}</h3><p>${tx.item_title} - ${tx.type} (${tx.qty} Unit)</p></body></html>`)
     printWindow.document.close()
+    printWindow.print()
   }
-
-  // Kalkulasi Ringkasan
-  const totalItemsCount = items.length
-  const totalValuation = items.reduce((acc, item) => acc + ((item.stock || 0) * (item.price || 0)), 0)
-  const lowStockCount = items.filter(item => (item.stock || 0) > 0 && (item.stock || 0) < 2).length
-  const outOfStockCount = items.filter(item => (item.stock || 0) === 0).length
-  const uniqueCategories = ['Semua', ...new Set(items.map(item => item.category).filter(Boolean))]
-
-  // Filtering & Searching & Sorting Logic
-  const filteredItems = items.filter((item) => {
-    const term = searchTerm.toLowerCase()
-    const matchTitle = item.title?.toLowerCase().includes(term) || item.sku?.toLowerCase().includes(term)
-    const matchCategory = selectedCategory === 'Semua' || (item.category && item.category.toLowerCase() === selectedCategory.toLowerCase())
-    
-    let matchStatus = true
-    const qty = item.stock || 0
-    if (stockStatusFilter === 'low') {
-      matchStatus = qty > 0 && qty < 2
-    } else if (stockStatusFilter === 'out') {
-      matchStatus = qty === 0
-    }
-    return matchTitle && matchCategory && matchStatus
-  })
-
-  // Sorting
-  const sortedItems = [...filteredItems].sort((a, b) => {
-    if (sortBy === 'title-asc') {
-      return (a.title || '').localeCompare(b.title || '')
-    } else if (sortBy === 'stock-asc') {
-      return (a.stock || 0) - (b.stock || 0)
-    } else if (sortBy === 'price-desc') {
-      return (b.price || 0) - (a.price || 0)
-    } else {
-      return new Date(b.created_at || 0) - new Date(a.created_at || 0)
-    }
-  })
-
-  // Pagination Logic
-  const totalPages = Math.ceil(sortedItems.length / itemsPerPage)
-  const paginatedItems = sortedItems.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 pb-16">
-      {/* Top Bar Banner */}
+      <input 
+        type="file" 
+        accept=".csv,.xlsx" 
+        ref={fileInputRef} 
+        style={{ display: 'none' }} 
+        onChange={handleImportCSV} 
+      />
+
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-800">
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -747,17 +815,14 @@ export const Dashboard = () => {
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>Enterprise Sync Active</span>
-              </span>
-              <span className="px-3 py-1 rounded-full bg-indigo-950 border border-indigo-700/60 text-indigo-300 text-xs font-semibold">
-                Role: {userRole.toUpperCase()}
+                <span>Professional Print Layout Active</span>
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               Enterprise Inventory Management
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm max-w-xl">
-              Sistem terpadu dengan analitik, scanner barcode kamera, stock opname, dan laporan lengkap.
+              Sistem terpadu dengan performa tinggi, analitik, scanner barcode kamera, dan paginasi server.
             </p>
           </div>
           
@@ -770,35 +835,37 @@ export const Dashboard = () => {
               <span>Transaksi</span>
             </button>
             <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 md:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs sm:text-sm border border-slate-700 shadow-sm transition-all"
+            >
+              <Upload className="w-4 h-4 text-emerald-400" />
+              <span>Import CSV</span>
+            </button>
+            <button
               onClick={handlePrintReport}
               className="flex-1 md:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs sm:text-sm shadow-sm transition-all"
-              title="Cetak Laporan PDF Berdasarkan Tab Aktif"
             >
               <Printer className="w-4 h-4" />
-              <span>Cetak PDF</span>
+              <span>Cetak PDF ({activeTab.toUpperCase()})</span>
             </button>
             <button
               onClick={handleExportCSV}
               className="flex-1 md:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs sm:text-sm border border-slate-700 shadow-sm transition-all"
-              title="Ekspor CSV Berdasarkan Tab Aktif"
             >
               <Download className="w-4 h-4" />
               <span>CSV</span>
             </button>
-            {userRole === 'admin' && (
-              <button 
-                onClick={() => handleOpenModal()} 
-                className="w-full md:w-auto inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm shadow-lg shadow-indigo-600/35 transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Tambah Produk</span>
-              </button>
-            )}
+            <button 
+              onClick={() => handleOpenModal()} 
+              className="w-full md:w-auto inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm shadow-lg shadow-indigo-600/35 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Tambah Produk</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Notifications / Alerts */}
       {error && (
         <div className="flex items-center justify-between bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm">
           <div className="flex items-center space-x-2">
@@ -810,6 +877,7 @@ export const Dashboard = () => {
           </button>
         </div>
       )}
+
       {success && (
         <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">
           <div className="flex items-center space-x-2">
@@ -822,7 +890,6 @@ export const Dashboard = () => {
         </div>
       )}
 
-      {/* Navigation Tabs */}
       <div className="flex space-x-2 border-b border-slate-200 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('overview')}
@@ -861,10 +928,9 @@ export const Dashboard = () => {
         </button>
       </div>
 
-      {/* Tab Content Rendering */}
       {activeTab === 'overview' && (
         <OverviewTab
-          items={items}
+          items={allUserItems}
           transactions={transactions}
           suppliers={suppliers}
           totalItemsCount={totalItemsCount}
@@ -876,23 +942,22 @@ export const Dashboard = () => {
       )}
       {activeTab === 'inventory' && (
         <InventoryTab
-          paginatedItems={paginatedItems}
-          filteredItems={filteredItems}
+          paginatedItems={items}
+          filteredItems={items}
           searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
+          setSearchTerm={(val) => { setSearchTerm(val); setCurrentPage(1); }}
           selectedCategory={selectedCategory}
-          setSelectedCategory={setSelectedCategory}
+          setSelectedCategory={(val) => { setSelectedCategory(val); setCurrentPage(1); }}
           uniqueCategories={uniqueCategories}
           stockStatusFilter={stockStatusFilter}
-          setStockStatusFilter={setStockStatusFilter}
+          setStockStatusFilter={(val) => { setStockStatusFilter(val); setCurrentPage(1); }}
           sortBy={sortBy}
           setSortBy={setSortBy}
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
           totalPages={totalPages}
           itemsPerPage={itemsPerPage}
-          setItemsPerPage={setItemsPerPage}
-          userRole={userRole}
+          setItemsPerPage={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
           handleOpenModal={handleOpenModal}
           handleDelete={handleDelete}
           setIsScannerOpen={setIsScannerOpen}
@@ -900,7 +965,7 @@ export const Dashboard = () => {
       )}
       {activeTab === 'opname' && (
         <OpnameTab
-          items={items}
+          items={allUserItems}
           opnameInputs={opnameInputs}
           setOpnameInputs={setOpnameInputs}
           handleProcessOpname={handleProcessOpname}
@@ -915,12 +980,11 @@ export const Dashboard = () => {
       {activeTab === 'suppliers' && (
         <SuppliersTab
           suppliers={suppliers}
-          userRole={userRole}
           setIsSupplierModalOpen={setIsSupplierModalOpen}
         />
       )}
 
-      {/* Modal Produk (Tambah/Edit) */}
+      {/* Modal Produk */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1047,13 +1111,13 @@ export const Dashboard = () => {
             </div>
             <form onSubmit={handleAddSupplier} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Supplier / Perusahaan</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Supplier</label>
                 <input
                   type="text"
                   required
                   value={supNameInput}
                   onChange={(e) => setSupNameInput(e.target.value)}
-                  placeholder="Contoh: PT Sumber Jaya"
+                  placeholder="PT Sumber Jaya"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                 />
               </div>
@@ -1063,7 +1127,7 @@ export const Dashboard = () => {
                   type="text"
                   value={supPhoneInput}
                   onChange={(e) => setSupPhoneInput(e.target.value)}
-                  placeholder="Contoh: 08123456789"
+                  placeholder="08123456789"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                 />
               </div>
@@ -1073,7 +1137,7 @@ export const Dashboard = () => {
                   type="text"
                   value={supAddrInput}
                   onChange={(e) => setSupAddrInput(e.target.value)}
-                  placeholder="Contoh: Jl. Ahmad Yani No. 10"
+                  placeholder="Jl. Ahmad Yani No. 10"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                 />
               </div>
@@ -1081,13 +1145,13 @@ export const Dashboard = () => {
                 <button
                   type="button"
                   onClick={() => setIsSupplierModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200"
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-500 shadow-md"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium shadow-md"
                 >
                   Simpan Supplier
                 </button>
@@ -1117,7 +1181,7 @@ export const Dashboard = () => {
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                 >
                   <option value="">-- Pilih Barang --</option>
-                  {items.map(item => (
+                  {allUserItems.map(item => (
                     <option key={item.id} value={item.id}>{item.title} (Stok: {item.stock || 0})</option>
                   ))}
                 </select>
@@ -1142,7 +1206,7 @@ export const Dashboard = () => {
                     min="1"
                     value={transQty}
                     onChange={(e) => setTransQty(e.target.value)}
-                    placeholder="Contoh: 5"
+                    placeholder="5"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                   />
                 </div>
@@ -1153,7 +1217,7 @@ export const Dashboard = () => {
                   type="text"
                   value={transNotes}
                   onChange={(e) => setTransNotes(e.target.value)}
-                  placeholder="Contoh: Pengiriman ke toko cabang"
+                  placeholder="Pengiriman ke cabang"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                 />
               </div>
@@ -1161,13 +1225,13 @@ export const Dashboard = () => {
                 <button
                   type="button"
                   onClick={() => setIsTransModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200"
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-500 shadow-md"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium shadow-md"
                 >
                   Simpan Transaksi
                 </button>
@@ -1177,7 +1241,7 @@ export const Dashboard = () => {
         </div>
       )}
 
-      {/* Modal Scanner Kamera */}
+      {/* Modal Scanner */}
       {isScannerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-center">
@@ -1191,16 +1255,10 @@ export const Dashboard = () => {
             </div>
             <div className="relative bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center">
               <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-              <div className="absolute inset-0 border-2 border-indigo-500/50 m-8 rounded-lg pointer-events-none flex items-center justify-center">
-                <span className="text-white text-xs bg-black/60 px-2 py-1 rounded">Arahkan ke Barcode Produk</span>
-              </div>
             </div>
-            <p className="text-xs text-slate-500">
-              Pastikan pencahayaan cukup dan kamera fokus pada barcode atau QR code barang.
-            </p>
             <button
               onClick={() => setIsScannerOpen(false)}
-              className="w-full py-2 bg-slate-800 text-white rounded-xl text-sm font-medium hover:bg-slate-700"
+              className="w-full py-2 bg-slate-800 text-white rounded-xl text-sm font-medium"
             >
               Tutup Scanner
             </button>

@@ -1,24 +1,59 @@
 import { supabase } from './supabase'
 
 export const itemService = {
-  // Mengambil item otomatis berdasarkan user yang sedang login
-  async getItems(userId) {
-    let targetUserId = userId
-    if (!targetUserId) {
-      const { data: { user } } = await supabase.auth.getUser()
-      targetUserId = user?.id
-    }
+  async getItems(userId, page = 1, limit = 10, search = '', category = 'Semua', status = 'all') {
+    try {
+      let targetUserId = userId
+      if (!targetUserId) {
+        const { data: { user } } = await supabase.auth.getUser()
+        targetUserId = user?.id
+      }
 
-    let query = supabase.from('items').select('*')
-    if (targetUserId) {
-      query = query.eq('user_id', targetUserId)
+      let query = supabase
+        .from('items')
+        .select('*', { count: 'exact' })
+
+      if (targetUserId) {
+        query = query.eq('user_id', targetUserId)
+      }
+
+      if (search) {
+        query = query.or(`title.ilike.%${search}%,sku.ilike.%${search}%`)
+      }
+
+      if (category && category !== 'Semua') {
+        query = query.eq('category', category)
+      }
+
+      if (status === 'low') {
+        query = query.gt('stock', 0).lt('stock', 2)
+      } else if (status === 'out') {
+        query = query.eq('stock', 0)
+      }
+
+      const from = (page - 1) * limit
+      const to = from + limit - 1
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (error) throw error
+
+      // Simpan data sukses ke localStorage sebagai cadangan offline
+      if (data) {
+        localStorage.setItem('cached_items', JSON.stringify(data))
+      }
+
+      return { data: data || [], count: count || 0 }
+    } catch (err) {
+      // Jika koneksi internet terputus, ambil data dari cache lokal browser
+      console.warn('Koneksi internet bermasalah, memuat data dari cache lokal...', err.message)
+      const cachedData = JSON.parse(localStorage.getItem('cached_items') || '[]')
+      return { data: cachedData, count: cachedData.length }
     }
-    const { data, error } = await query.order('created_at', { ascending: false })
-    if (error) throw error
-    return data
   },
 
-  // Menyimpan item baru dengan menyisipkan user_id secara otomatis dari sesi aktif
   async createItem(item) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Pengguna tidak terautentikasi. Silakan login kembali.')
