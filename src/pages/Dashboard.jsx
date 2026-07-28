@@ -139,7 +139,7 @@ export const Dashboard = () => {
           .select('company_name')
           .eq('id', userId)
           .single()
-
+          
         if (profileData && profileData.company_name) {
           setCompanyName(profileData.company_name)
           setTempCompanyName(profileData.company_name)
@@ -147,7 +147,7 @@ export const Dashboard = () => {
           setTempCompanyName(companyName)
         }
       }
-
+      
       const result = await itemService.getItems(
         userId, 
         currentPage, 
@@ -158,6 +158,7 @@ export const Dashboard = () => {
       )
       setItems(result.data)
       setTotalItemsCountServer(result.count)
+      
       const allResult = await itemService.getItems(userId, 1, 1000, '', 'Semua', 'all')
       setAllUserItems(allResult.data)
       await fetchTransactions(userId)
@@ -176,20 +177,21 @@ export const Dashboard = () => {
     try {
       const activeUser = user || (await supabase.auth.getUser()).data?.user
       if (!activeUser) throw new Error('Pengguna tidak terautentikasi.')
-
+      
+      // Menggunakan upsert agar jika baris profil belum ada, otomatis dibuatkan baru
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ 
+        .upsert({ 
+          id: activeUser.id,
           company_name: tempCompanyName,
           updated_at: new Date()
         })
-        .eq('id', activeUser.id)
 
       if (updateError) throw updateError
-
+      
       setCompanyName(tempCompanyName)
       setIsEditingCompany(false)
-      setSuccess('Nama perusahaan berhasil diperbarui.')
+      setSuccess('Nama perusahaan berhasil diperbarui dan disimpan secara permanen.')
     } catch (err) {
       setError('Gagal memperbarui nama perusahaan: ' + err.message)
     } finally {
@@ -457,7 +459,6 @@ export const Dashboard = () => {
   const uniqueCategories = ['Semua', ...new Set(allUserItems.map(item => item.category).filter(Boolean))]
   const totalPages = Math.ceil(totalItemsCountServer / itemsPerPage) || 1
 
-  // Format PDF Cetak Profesional Otomatis Sesuai Tab Aktif
   const handlePrintReport = () => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
@@ -853,7 +854,6 @@ export const Dashboard = () => {
                 <span>Professional Print Layout Active</span>
               </span>
             </div>
-
             {/* Judul / Nama Perusahaan dengan Tombol Edit */}
             <div className="flex items-center space-x-3">
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
@@ -872,7 +872,6 @@ export const Dashboard = () => {
                 </button>
               )}
             </div>
-
             {/* Form Edit Nama Perusahaan Inline */}
             {isEditingCompany && (
               <form onSubmit={handleUpdateCompanyName} className="flex items-center space-x-2 pt-2 max-w-md">
@@ -903,7 +902,6 @@ export const Dashboard = () => {
                 </button>
               </form>
             )}
-
             <p className="text-slate-300 text-xs sm:text-sm max-w-xl">
               Sistem terpadu dengan performa tinggi, analitik dan paginasi server.
             </p>
@@ -930,7 +928,6 @@ export const Dashboard = () => {
             >
               <Download className="w-4 h-4" />
               <span>CSV</span>
-
             </button>
           </div>
         </div>
