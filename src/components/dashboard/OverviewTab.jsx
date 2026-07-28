@@ -134,7 +134,7 @@ export const OverviewTab = ({
             </div>
 
             <div className="pt-2 border-t border-slate-100">
-              <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Vendor Supplier Aktif</p>
+              <p className="text-xs font-semibold text-sslate-500 mb-2 uppercase tracking-wider">Vendor Supplier Aktif</p>
               <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center">
                 <span className="text-xs font-medium text-indigo-900">Total Supplier Mitra</span>
                 <span className="text-sm font-extrabold text-indigo-700">{suppliers.length} Vendor</span>

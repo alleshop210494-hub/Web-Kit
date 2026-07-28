@@ -1,5 +1,5 @@
 import React from 'react'
-import { Search, Plus, Edit3, Trash2, Camera, Package, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Edit3, Trash2, Package, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export const InventoryTab = ({
   paginatedItems,
@@ -19,8 +19,7 @@ export const InventoryTab = ({
   itemsPerPage,
   setItemsPerPage,
   handleOpenModal,
-  handleDelete,
-  setIsScannerOpen
+  handleDelete
 }) => {
   return (
     <div className="space-y-6">
@@ -38,13 +37,6 @@ export const InventoryTab = ({
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setIsScannerOpen(true)}
-              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition-all"
-            >
-              <Camera className="w-4 h-4 text-indigo-600" />
-              <span>Scan Barcode</span>
-            </button>
             <button
               onClick={() => handleOpenModal()}
               className="inline-flex items-center space-x-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-medium shadow-md transition-all"

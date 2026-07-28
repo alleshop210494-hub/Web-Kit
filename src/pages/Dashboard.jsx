@@ -137,7 +137,6 @@ export const Dashboard = () => {
       )
       setItems(result.data)
       setTotalItemsCountServer(result.count)
-
       const allResult = await itemService.getItems(userId, 1, 1000, '', 'Semua', 'all')
       setAllUserItems(allResult.data)
       await fetchTransactions(userId)
@@ -254,7 +253,10 @@ export const Dashboard = () => {
     if (!transItem || !transQty) return
     const qtyNum = parseInt(transQty, 10)
     const targetItem = allUserItems.find(i => String(i.id) === String(transItem)) || items.find(i => String(i.id) === String(transItem))
-    if (!targetItem) return
+    if (!targetItem) {
+      setError('Produk tidak ditemukan.')
+      return
+    }
     if (transType === 'KELUAR' && targetItem.stock < qtyNum) {
       setError('Stok tidak mencukupi untuk pengeluaran barang ini!')
       return
@@ -336,7 +338,6 @@ export const Dashboard = () => {
   const handleImportCSV = (e) => {
     const file = e.target.files[0]
     if (!file) return
-
     const reader = new FileReader()
     reader.onload = async (event) => {
       try {
@@ -346,15 +347,12 @@ export const Dashboard = () => {
           setError('File CSV kosong atau tidak memiliki data baris.')
           return
         }
-
         const firstLine = lines[0]
         const separator = firstLine.includes(';') ? ';' : ','
         const headers = firstLine.split(separator).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase())
-
         const getIndex = (keywords) => {
           return headers.findIndex(h => keywords.some(keyword => h.includes(keyword)))
         }
-
         const titleIdx = getIndex(['nama', 'title', 'barang', 'product', 'item', 'produk'])
         const catIdx = getIndex(['kategori', 'category', 'jenis'])
         const stockIdx = getIndex(['stok', 'stock', 'qty', 'jumlah'])
@@ -362,18 +360,15 @@ export const Dashboard = () => {
         const skuIdx = getIndex(['sku', 'kode', 'code'])
         const locIdx = getIndex(['lokasi', 'location', 'rak', 'warehouse'])
         const supIdx = getIndex(['supplier', 'pemasok', 'vendor'])
-
         if (titleIdx === -1) {
           setError('Format CSV tidak dikenali: Kolom nama barang tidak ditemukan di baris header.')
           return
         }
-
         const activeUser = user || (await supabase.auth.getUser()).data?.user
         if (!activeUser) {
           setError('Pengguna tidak terautentikasi. Silakan login kembali.')
           return
         }
-
         let successCount = 0
         for (let i = 1; i < lines.length; i++) {
           const line = lines[i]
@@ -381,7 +376,6 @@ export const Dashboard = () => {
           
           const titleVal = titleIdx !== -1 ? cols[titleIdx] : ''
           if (!titleVal) continue
-
           const payload = {
             title: titleVal,
             category: (catIdx !== -1 && cols[catIdx]) ? cols[catIdx] : 'Lainnya',
@@ -392,11 +386,9 @@ export const Dashboard = () => {
             supplier: (supIdx !== -1 && cols[supIdx]) ? cols[supIdx] : 'Umum',
             user_id: activeUser.id
           }
-
           await itemService.createItem(payload)
           successCount++
         }
-
         await fetchData()
         setSuccess(`Berhasil mengimpor ${successCount} produk dari file CSV.`)
       } catch (err) {
@@ -419,16 +411,13 @@ export const Dashboard = () => {
   const handlePrintReport = () => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
-
     const currentDate = new Date().toLocaleDateString('id-ID', {
       day: 'numeric',
       month: 'long',
       year: 'numeric'
     })
-
     let reportTitle = 'Laporan Inventori Gudang'
     let contentHTML = ''
-
     if (activeTab === 'overview') {
       reportTitle = 'Laporan Ringkasan & Analitik Eksekutif'
       contentHTML = `
@@ -604,7 +593,6 @@ export const Dashboard = () => {
         </table>
       `
     }
-
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -737,9 +725,7 @@ export const Dashboard = () => {
             <p>Dicetak Pada: ${currentDate}</p>
           </div>
         </div>
-
         ${contentHTML}
-
         <div class="footer">
           <div class="footer-note">
             <p>Dokumen ini dicetak otomatis secara elektronik dari sistem Enterprise Inventory.<br/>Sah dan berlaku tanpa tanda tangan basah apabila terverifikasi database.</p>
@@ -750,7 +736,6 @@ export const Dashboard = () => {
             <p><b>Administrator / Kepala Gudang</b></p>
           </div>
         </div>
-
         <script>
           window.onload = function() {
             window.print();
@@ -759,7 +744,6 @@ export const Dashboard = () => {
       </body>
       </html>
     `
-
     printWindow.document.write(htmlContent)
     printWindow.document.close()
   }
@@ -807,7 +791,8 @@ export const Dashboard = () => {
         style={{ display: 'none' }} 
         onChange={handleImportCSV} 
       />
-
+      
+      {/* Header Card (Tombol Transaksi telah dihapus dari sini) */}
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-800">
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -827,13 +812,6 @@ export const Dashboard = () => {
           </div>
           
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto pt-2 md:pt-0">
-            <button
-              onClick={() => setIsTransModalOpen(true)}
-              className="flex-1 md:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs sm:text-sm border border-slate-700 shadow-sm transition-all"
-            >
-              <Truck className="w-4 h-4 text-indigo-400" />
-              <span>Transaksi</span>
-            </button>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex-1 md:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs sm:text-sm border border-slate-700 shadow-sm transition-all"
