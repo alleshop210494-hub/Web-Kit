@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { itemService } from '../services/itemService'
 import { supabase } from '../services/supabase'
 import { 
   Package, Layers, Plus, AlertCircle, CheckCircle, 
-  X, Download, Upload, TrendingUp, Truck, FileText, Printer, CheckSquare, Camera, Pencil 
+  X, Download, Upload, TrendingUp, Truck, FileText, Printer, CheckSquare, Pencil 
 } from 'lucide-react'
 import { OverviewTab } from '../components/dashboard/OverviewTab'
 import { InventoryTab } from '../components/dashboard/InventoryTab'
 import { OpnameTab } from '../components/dashboard/OpnameTab'
 import { TransactionsTab } from '../components/dashboard/TransactionsTab'
 import { SuppliersTab } from '../components/dashboard/SuppliersTab'
+import ProductModal from '../components/dashboard/modals/ProductModal'
+import { SupplierModal } from '../components/dashboard/modals/SupplierModal'
+import { TransactionModal } from '../components/dashboard/modals/TransactionModal'
 
 export const Dashboard = () => {
   const { user } = useAuth()
@@ -27,13 +30,11 @@ export const Dashboard = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   
-  // State untuk Nama Perusahaan & Fitur Edit Inline
   const [companyName, setCompanyName] = useState('Enterprise Inventory Control')
   const [isEditingCompany, setIsEditingCompany] = useState(false)
   const [tempCompanyName, setTempCompanyName] = useState('')
   const [savingCompany, setSavingCompany] = useState(false)
 
-  // State Filter, Pencarian, & Server-Side Pagination
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Semua')
   const [stockStatusFilter, setStockStatusFilter] = useState('all')
@@ -42,12 +43,9 @@ export const Dashboard = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [totalItemsCountServer, setTotalItemsCountServer] = useState(0)
   
-  // State Modal & Kamera Scanner & File Ref
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
   const [isTransModalOpen, setIsTransModalOpen] = useState(false)
-  const [isScannerOpen, setIsScannerOpen] = useState(false)
-  const videoRef = useRef(null)
   const fileInputRef = useRef(null)
   const [editingId, setEditingId] = useState(null)
   
@@ -58,7 +56,7 @@ export const Dashboard = () => {
   const [sku, setSku] = useState('')
   const [lokasiRak, setLokasiRak] = useState('')
   const [supplierName, setSupplierName] = useState('')
-  const [productCustomValues, setProductCustomValues] = useState({}) // Key-value atribut kustom produk
+  const [productCustomValues, setProductCustomValues] = useState({})
   const [submitting, setSubmitting] = useState(false)
   
   const [supNameInput, setSupNameInput] = useState('')
@@ -70,12 +68,10 @@ export const Dashboard = () => {
   const [transNotes, setTransNotes] = useState('')
   const [opnameInputs, setOpnameInputs] = useState({})
 
-  // Ambil data setiap kali parameter pencarian/halaman berubah
   useEffect(() => {
     fetchData()
   }, [user, currentPage, itemsPerPage, searchTerm, selectedCategory, stockStatusFilter])
 
-  // Real-time listener yang difilter spesifik berdasarkan user_id
   useEffect(() => {
     let channel = null
     const setupRealtime = async () => {
@@ -105,29 +101,6 @@ export const Dashboard = () => {
       }
     }
   }, [user])
-
-  // Efek kamera scanner
-  useEffect(() => {
-    let stream = null
-    if (isScannerOpen) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        .then((s) => {
-          stream = s
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream
-          }
-        })
-        .catch((err) => {
-          console.error('Kamera tidak dapat diakses:', err)
-          setError('Akses kamera ditolak atau tidak tersedia pada perangkat ini.')
-        })
-    }
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
-      }
-    }
-  }, [isScannerOpen])
 
   const fetchData = async () => {
     try {
@@ -171,9 +144,30 @@ export const Dashboard = () => {
     }
   }
 
-  // Kolom kustom dihasilkan otomatis dari seluruh key custom_fields yang ada di semua produk
-  const customColumns = Array.from(
+  const customColumns = useMemo(() => Array.from(
     new Set(allUserItems.flatMap(item => Object.keys(item.custom_fields || {})))
+  ), [allUserItems])
+
+  const totalItemsCount = allUserItems.length
+  
+  const totalValuation = useMemo(() => 
+    allUserItems.reduce((acc, item) => acc + ((item.stock || 0) * (item.price || 0)), 0),
+    [allUserItems]
+  )
+
+  const lowStockCount = useMemo(() => 
+    allUserItems.filter(item => (item.stock || 0) > 0 && (item.stock || 0) < 2).length,
+    [allUserItems]
+  )
+
+  const outOfStockCount = useMemo(() => 
+    allUserItems.filter(item => (item.stock || 0) === 0).length,
+    [allUserItems]
+  )
+
+  const uniqueCategories = useMemo(() => 
+    ['Semua', ...new Set(allUserItems.map(item => item.category).filter(Boolean))],
+    [allUserItems]
   )
 
   const handleUpdateCompanyName = async (e) => {
@@ -263,7 +257,7 @@ export const Dashboard = () => {
         sku: sku || 'SKU-GENERAL',
         location: lokasiRak || 'Gudang Utama',
         supplier: supplierName || 'Umum',
-        custom_fields: productCustomValues, // Menyimpan nilai & kolom kustom ke database
+        custom_fields: productCustomValues,
         user_id: activeUser?.id
       }
       if (editingId) {
@@ -459,14 +453,8 @@ export const Dashboard = () => {
     reader.readAsText(file)
   }
 
-  const totalItemsCount = allUserItems.length
-  const totalValuation = allUserItems.reduce((acc, item) => acc + ((item.stock || 0) * (item.price || 0)), 0)
-  const lowStockCount = allUserItems.filter(item => (item.stock || 0) > 0 && (item.stock || 0) < 2).length
-  const outOfStockCount = allUserItems.filter(item => (item.stock || 0) === 0).length
-  const uniqueCategories = ['Semua', ...new Set(allUserItems.map(item => item.category).filter(Boolean))]
   const totalPages = Math.ceil(totalItemsCountServer / itemsPerPage) || 1
 
-  // Format PDF Cetak Profesional Otomatis Sesuai Tab Aktif
   const handlePrintReport = () => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
@@ -841,14 +829,6 @@ export const Dashboard = () => {
     setSuccess('File laporan CSV berhasil diunduh.')
   }
 
-  const handlePrintInvoice = (tx) => {
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) return
-    printWindow.document.write(`<html><body><h3>Invoice #${tx.id}</h3><p>${tx.item_title} - ${tx.type} (${tx.qty} Unit)</p></body></html>`)
-    printWindow.document.close()
-    printWindow.print()
-  }
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 pb-16">
       <input 
@@ -859,7 +839,6 @@ export const Dashboard = () => {
         onChange={handleImportCSV} 
       />
       
-      {/* Header Card dengan Fitur Edit Nama Perusahaan Inline */}
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-800">
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -870,7 +849,7 @@ export const Dashboard = () => {
                 <span>Professional Print Layout Active</span>
               </span>
             </div>
-            {/* Judul / Nama Perusahaan dengan Tombol Edit */}
+            
             <div className="flex items-center space-x-3">
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                 {companyName}
@@ -881,14 +860,14 @@ export const Dashboard = () => {
                     setTempCompanyName(companyName)
                     setIsEditingCompany(true)
                   }}
-                  className="p-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 transition-all border border-indigo-500/30"
+                  className="p-1.5 rounded-lg bg-indigo-600/35 hover:bg-indigo-600/50 text-indigo-200 transition-all border border-indigo-500/30"
                   title="Ubah Nama Perusahaan"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
               )}
             </div>
-            {/* Form Edit Nama Perusahaan Inline */}
+            
             {isEditingCompany && (
               <form onSubmit={handleUpdateCompanyName} className="flex items-center space-x-2 pt-2 max-w-md">
                 <input
@@ -960,7 +939,6 @@ export const Dashboard = () => {
           </button>
         </div>
       )}
-
       {success && (
         <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">
           <div className="flex items-center space-x-2">
@@ -1043,7 +1021,6 @@ export const Dashboard = () => {
           setItemsPerPage={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
           handleOpenModal={handleOpenModal}
           handleDelete={handleDelete}
-          setIsScannerOpen={setIsScannerOpen}
           customColumns={customColumns}
         />
       )}
@@ -1058,7 +1035,6 @@ export const Dashboard = () => {
       {activeTab === 'transactions' && (
         <TransactionsTab
           transactions={transactions}
-          handlePrintInvoice={handlePrintInvoice}
         />
       )}
       {activeTab === 'suppliers' && (
@@ -1068,358 +1044,59 @@ export const Dashboard = () => {
         />
       )}
 
-      {/* Modal Produk (Dengan Input Tambah/Edit Kolom Kustom Langsung) */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="text-lg font-bold text-slate-900">
-                {editingId ? 'Edit Data Produk' : 'Tambah Produk Baru'}
-              </h3>
-              <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Barang</label>
-                <input
-                  type="text"
-                  required
-                  value={namaBarang}
-                  onChange={(e) => setNamaBarang(e.target.value)}
-                  placeholder="Contoh: Semen Gresik 50kg"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Kategori</label>
-                  <input
-                    type="text"
-                    value={kategori}
-                    onChange={(e) => setKategori(e.target.value)}
-                    placeholder="Contoh: Bahan Bangunan"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">SKU / Kode Barang</label>
-                  <input
-                    type="text"
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                    placeholder="Contoh: SKU-1001"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Jumlah Stok Awal</label>
-                  <input
-                    type="number"
-                    required
-                    value={stok}
-                    onChange={(e) => setStok(e.target.value)}
-                    placeholder="10"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Harga Satuan (Rp)</label>
-                  <input
-                    type="number"
-                    required
-                    value={harga}
-                    onChange={(e) => setHarga(e.target.value)}
-                    placeholder="50000"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Lokasi Rak / Gudang</label>
-                  <input
-                    type="text"
-                    value={lokasiRak}
-                    onChange={(e) => setLokasiRak(e.target.value)}
-                    placeholder="Rak A-01"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier</label>
-                  <select
-                    value={supplierName}
-                    onChange={(e) => setSupplierName(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  >
-                    {suppliers.map(sup => (
-                      <option key={sup.id} value={sup.name}>{sup.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+      <ProductModal
+        isModalOpen={isModalOpen}
+        handleCloseModal={handleCloseModal}
+        editingId={editingId}
+        handleSubmit={handleSubmit}
+        submitting={submitting}
+        namaBarang={namaBarang}
+        setNamaBarang={setNamaBarang}
+        kategori={kategori}
+        setKategori={setKategori}
+        sku={sku}
+        setSku={setSku}
+        stok={stok}
+        setStok={setStok}
+        harga={harga}
+        setHarga={setHarga}
+        lokasiRak={lokasiRak}
+        setLokasiRak={setLokasiRak}
+        supplierName={supplierName}
+        setSupplierName={setSupplierName}
+        suppliers={suppliers}
+        productCustomValues={productCustomValues}
+        setProductCustomValues={setProductCustomValues}
+      />
 
-              {/* FITUR CUSTOM KOLOM LANGSUNG DI MODAL PRODUK */}
-              <div className="border-t pt-3 space-y-3">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Atribut / Kolom Kustom Produk</h4>
-                <p className="text-[11px] text-slate-500">Anda bisa menambah kolom baru dengan mengetik nama atribut di bawah (otomatis menjadi kolom baru di tabel).</p>
-                
-                {/* Daftar Atribut Kustom yang sudah diisi */}
-                {Object.entries(productCustomValues).map(([key, val]) => (
-                  <div key={key} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={key}
-                      disabled
-                      className="w-1/3 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600"
-                    />
-                    <input
-                      type="text"
-                      value={val}
-                      onChange={(e) => setProductCustomValues({ ...productCustomValues, [key]: e.target.value })}
-                      placeholder="Nilai atribut"
-                      className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = { ...productCustomValues }
-                        delete updated[key]
-                        setProductCustomValues(updated)
-                      }}
-                      className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
-                      title="Hapus Atribut"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+      <SupplierModal
+        isSupplierModalOpen={isSupplierModalOpen}
+        setIsSupplierModalOpen={setIsSupplierModalOpen}
+        handleAddSupplier={handleAddSupplier}
+        supNameInput={supNameInput}
+        setSupNameInput={setSupNameInput}
+        supPhoneInput={supPhoneInput}
+        setSupPhoneInput={setSupPhoneInput}
+        supAddrInput={supAddrInput}
+        setSupAddrInput={setSupAddrInput}
+      />
 
-                {/* Input Tambah Kolom/Atribut Baru */}
-                <div className="flex items-center space-x-2 pt-1">
-                  <input
-                    type="text"
-                    id="newCustomKey"
-                    placeholder="Nama Kolom Baru (Cth: Merk)"
-                    className="w-1/3 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                  />
-                  <input
-                    type="text"
-                    id="newCustomVal"
-                    placeholder="Nilai Atribut"
-                    className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const keyInput = document.getElementById('newCustomKey')
-                      const valInput = document.getElementById('newCustomVal')
-                      if (keyInput && keyInput.value.trim()) {
-                        const newKey = keyInput.value.trim()
-                        const newVal = valInput ? valInput.value : ''
-                        setProductCustomValues({ ...productCustomValues, [newKey]: newVal })
-                        keyInput.value = ''
-                        if (valInput) valInput.value = ''
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-medium"
-                  >
-                    Tambah
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-500 shadow-md"
-                >
-                  {submitting ? 'Menyimpan...' : 'Simpan Produk'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Supplier */}
-      {isSupplierModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="text-lg font-bold text-slate-900">Tambah Supplier Baru</h3>
-              <button onClick={() => setIsSupplierModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleAddSupplier} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Supplier</label>
-                <input
-                  type="text"
-                  required
-                  value={supNameInput}
-                  onChange={(e) => setSupNameInput(e.target.value)}
-                  placeholder="PT Sumber Jaya"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nomor Telepon</label>
-                <input
-                  type="text"
-                  value={supPhoneInput}
-                  onChange={(e) => setSupPhoneInput(e.target.value)}
-                  placeholder="08123456789"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Alamat</label>
-                <input
-                  type="text"
-                  value={supAddrInput}
-                  onChange={(e) => setSupAddrInput(e.target.value)}
-                  placeholder="Jl. Ahmad Yani No. 10"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                />
-              </div>
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSupplierModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium shadow-md"
-                >
-                  Simpan Supplier
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Transaksi */}
-      {isTransModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="text-lg font-bold text-slate-900">Catat Transaksi Mutasi Stok</h3>
-              <button onClick={() => setIsTransModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleAddTransaction} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Pilih Produk</label>
-                <select
-                  required
-                  value={transItem}
-                  onChange={(e) => setTransItem(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                >
-                  <option value="">-- Pilih Barang --</option>
-                  {allUserItems.map(item => (
-                    <option key={item.id} value={item.id}>{item.title} (Stok: {item.stock || 0})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Jenis Mutasi</label>
-                  <select
-                    value={transType}
-                    onChange={(e) => setTransType(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  >
-                    <option value="MASUK">MASUK</option>
-                    <option value="KELUAR">KELUAR</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Jumlah Unit</label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    value={transQty}
-                    onChange={(e) => setTransQty(e.target.value)}
-                    placeholder="5"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Keterangan / Catatan</label>
-                <input
-                  type="text"
-                  value={transNotes}
-                  onChange={(e) => setTransNotes(e.target.value)}
-                  placeholder="Pengiriman ke cabang"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                />
-              </div>
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsTransModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium shadow-md"
-                >
-                  Simpan Transaksi
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Scanner */}
-      {isScannerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-center">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Camera className="w-5 h-5 text-indigo-600" /> Scanner Barcode / Kamera
-              </h3>
-              <button onClick={() => setIsScannerOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="relative bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center">
-              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-            </div>
-            <button
-              onClick={() => setIsScannerOpen(false)}
-              className="w-full py-2 bg-slate-800 text-white rounded-xl text-sm font-medium"
-            >
-              Tutup Scanner
-            </button>
-          </div>
-        </div>
-      )}
+      <TransactionModal
+        isTransModalOpen={isTransModalOpen}
+        setIsTransModalOpen={setIsTransModalOpen}
+        handleAddTransaction={handleAddTransaction}
+        transItem={transItem}
+        setTransItem={setTransItem}
+        allUserItems={allUserItems}
+        transType={transType}
+        setTransType={setTransType}
+        transQty={transQty}
+        setTransQty={setTransQty}
+        transNotes={transNotes}
+        setTransNotes={setTransNotes}
+      />
     </div>
   )
 }
+
+export default Dashboard
