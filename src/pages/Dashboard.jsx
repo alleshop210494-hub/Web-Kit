@@ -58,7 +58,9 @@ export const Dashboard = () => {
   const [sku, setSku] = useState('')
   const [lokasiRak, setLokasiRak] = useState('')
   const [supplierName, setSupplierName] = useState('')
+  const [productCustomValues, setProductCustomValues] = useState({}) // Key-value atribut kustom produk
   const [submitting, setSubmitting] = useState(false)
+  
   const [supNameInput, setSupNameInput] = useState('')
   const [supPhoneInput, setSupPhoneInput] = useState('')
   const [supAddrInput, setSupAddrInput] = useState('')
@@ -139,7 +141,7 @@ export const Dashboard = () => {
           .select('company_name')
           .eq('id', userId)
           .single()
-          
+        
         if (profileData && profileData.company_name) {
           setCompanyName(profileData.company_name)
           setTempCompanyName(profileData.company_name)
@@ -169,6 +171,11 @@ export const Dashboard = () => {
     }
   }
 
+  // Kolom kustom dihasilkan otomatis dari seluruh key custom_fields yang ada di semua produk
+  const customColumns = Array.from(
+    new Set(allUserItems.flatMap(item => Object.keys(item.custom_fields || {})))
+  )
+
   const handleUpdateCompanyName = async (e) => {
     e.preventDefault()
     setSavingCompany(true)
@@ -177,21 +184,17 @@ export const Dashboard = () => {
     try {
       const activeUser = user || (await supabase.auth.getUser()).data?.user
       if (!activeUser) throw new Error('Pengguna tidak terautentikasi.')
-      
-      // Menggunakan upsert agar jika baris profil belum ada, otomatis dibuatkan baru
       const { error: updateError } = await supabase
         .from('profiles')
-        .upsert({ 
-          id: activeUser.id,
+        .update({ 
           company_name: tempCompanyName,
           updated_at: new Date()
         })
-
+        .eq('id', activeUser.id)
       if (updateError) throw updateError
-      
       setCompanyName(tempCompanyName)
       setIsEditingCompany(false)
-      setSuccess('Nama perusahaan berhasil diperbarui dan disimpan secara permanen.')
+      setSuccess('Nama perusahaan berhasil diperbarui.')
     } catch (err) {
       setError('Gagal memperbarui nama perusahaan: ' + err.message)
     } finally {
@@ -224,6 +227,7 @@ export const Dashboard = () => {
       setSku(item.sku || '')
       setLokasiRak(item.location || '')
       setSupplierName(item.supplier || '')
+      setProductCustomValues(item.custom_fields || {})
     } else {
       setEditingId(null)
       setNamaBarang('')
@@ -233,6 +237,7 @@ export const Dashboard = () => {
       setSku('SKU-' + Math.floor(1000 + Math.random() * 9000))
       setLokasiRak('Rak A-01')
       setSupplierName(suppliers[0]?.name || '')
+      setProductCustomValues({})
     }
     setIsModalOpen(true)
   }
@@ -240,6 +245,7 @@ export const Dashboard = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setEditingId(null)
+    setProductCustomValues({})
   }
 
   const handleSubmit = async (e) => {
@@ -257,6 +263,7 @@ export const Dashboard = () => {
         sku: sku || 'SKU-GENERAL',
         location: lokasiRak || 'Gudang Utama',
         supplier: supplierName || 'Umum',
+        custom_fields: productCustomValues, // Menyimpan nilai & kolom kustom ke database
         user_id: activeUser?.id
       }
       if (editingId) {
@@ -459,6 +466,7 @@ export const Dashboard = () => {
   const uniqueCategories = ['Semua', ...new Set(allUserItems.map(item => item.category).filter(Boolean))]
   const totalPages = Math.ceil(totalItemsCountServer / itemsPerPage) || 1
 
+  // Format PDF Cetak Profesional Otomatis Sesuai Tab Aktif
   const handlePrintReport = () => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
@@ -518,6 +526,7 @@ export const Dashboard = () => {
       `
     } else if (activeTab === 'inventory') {
       reportTitle = 'Laporan Manajemen Produk Inventori'
+      const customHeadersHTML = customColumns.map(col => `<th>${col}</th>`).join('')
       contentHTML = `
         <div class="summary-container" style="grid-template-columns: repeat(2, 1fr);">
           <div class="summary-card">
@@ -533,26 +542,31 @@ export const Dashboard = () => {
           <thead>
             <tr>
               <th style="width: 5%;" class="text-center">No</th>
-              <th style="width: 16%;">SKU / Kode</th>
-              <th style="width: 29%;">Nama Produk</th>
+              <th style="width: 15%;">SKU / Kode</th>
+              <th style="width: 25%;">Nama Produk</th>
               <th style="width: 15%;">Kategori</th>
               <th style="width: 10%;" class="text-center">Stok</th>
               <th style="width: 15%;" class="text-right">Harga Satuan</th>
+              ${customHeadersHTML}
               <th style="width: 10%;">Lokasi Rak</th>
             </tr>
           </thead>
           <tbody>
-            ${allUserItems.map((item, index) => `
-              <tr>
-                <td class="text-center">${index + 1}</td>
-                <td><b>${item.sku || '-'}</b></td>
-                <td>${item.title || ''}</td>
-                <td>${item.category || 'Lainnya'}</td>
-                <td class="text-center"><b>${item.stock || 0}</b></td>
-                <td class="text-right">Rp ${(item.price || 0).toLocaleString('id-ID')}</td>
-                <td>${item.location || '-'}</td>
-              </tr>
-            `).join('')}
+            ${allUserItems.map((item, index) => {
+              const customCellsHTML = customColumns.map(col => `<td>${item.custom_fields?.[col] || '-'}</td>`).join('')
+              return `
+                <tr>
+                  <td class="text-center">${index + 1}</td>
+                  <td><b>${item.sku || '-'}</b></td>
+                  <td>${item.title || ''}</td>
+                  <td>${item.category || 'Lainnya'}</td>
+                  <td class="text-center"><b>${item.stock || 0}</b></td>
+                  <td class="text-right">Rp ${(item.price || 0).toLocaleString('id-ID')}</td>
+                  ${customCellsHTML}
+                  <td>${item.location || '-'}</td>
+                </tr>
+              `
+            }).join('')}
           </tbody>
         </table>
       `
@@ -800,9 +814,10 @@ export const Dashboard = () => {
   }
 
   const handleExportCSV = () => {
-    let headers = ['ID', 'SKU', 'Nama Barang', 'Kategori', 'Stok', 'Harga Satuan (Rp)', 'Lokasi Rak', 'Supplier']
+    let headers = ['ID', 'SKU', 'Nama Barang', 'Kategori', 'Stok', 'Harga Satuan (Rp)', ...customColumns, 'Lokasi Rak', 'Supplier']
     let csvRows = [headers.join(';')]
     allUserItems.forEach(item => {
+      let customValuesArr = customColumns.map(col => `"${(item.custom_fields?.[col] || '').replace(/"/g, '""')}"`)
       csvRows.push([
         item.id,
         `"${item.sku || '-'}"`,
@@ -810,6 +825,7 @@ export const Dashboard = () => {
         `"${(item.category || 'Lainnya')}"`,
         item.stock || 0,
         item.price || 0,
+        ...customValuesArr,
         `"${item.location || '-'}"`,
         `"${item.supplier || '-'}"`
       ].join(';'))
@@ -1028,6 +1044,7 @@ export const Dashboard = () => {
           handleOpenModal={handleOpenModal}
           handleDelete={handleDelete}
           setIsScannerOpen={setIsScannerOpen}
+          customColumns={customColumns}
         />
       )}
       {activeTab === 'opname' && (
@@ -1051,7 +1068,7 @@ export const Dashboard = () => {
         />
       )}
 
-      {/* Modal Produk */}
+      {/* Modal Produk (Dengan Input Tambah/Edit Kolom Kustom Langsung) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1145,6 +1162,77 @@ export const Dashboard = () => {
                   </select>
                 </div>
               </div>
+
+              {/* FITUR CUSTOM KOLOM LANGSUNG DI MODAL PRODUK */}
+              <div className="border-t pt-3 space-y-3">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Atribut / Kolom Kustom Produk</h4>
+                <p className="text-[11px] text-slate-500">Anda bisa menambah kolom baru dengan mengetik nama atribut di bawah (otomatis menjadi kolom baru di tabel).</p>
+                
+                {/* Daftar Atribut Kustom yang sudah diisi */}
+                {Object.entries(productCustomValues).map(([key, val]) => (
+                  <div key={key} className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={key}
+                      disabled
+                      className="w-1/3 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600"
+                    />
+                    <input
+                      type="text"
+                      value={val}
+                      onChange={(e) => setProductCustomValues({ ...productCustomValues, [key]: e.target.value })}
+                      placeholder="Nilai atribut"
+                      className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = { ...productCustomValues }
+                        delete updated[key]
+                        setProductCustomValues(updated)
+                      }}
+                      className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                      title="Hapus Atribut"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Input Tambah Kolom/Atribut Baru */}
+                <div className="flex items-center space-x-2 pt-1">
+                  <input
+                    type="text"
+                    id="newCustomKey"
+                    placeholder="Nama Kolom Baru (Cth: Merk)"
+                    className="w-1/3 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  />
+                  <input
+                    type="text"
+                    id="newCustomVal"
+                    placeholder="Nilai Atribut"
+                    className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const keyInput = document.getElementById('newCustomKey')
+                      const valInput = document.getElementById('newCustomVal')
+                      if (keyInput && keyInput.value.trim()) {
+                        const newKey = keyInput.value.trim()
+                        const newVal = valInput ? valInput.value : ''
+                        setProductCustomValues({ ...productCustomValues, [newKey]: newVal })
+                        keyInput.value = ''
+                        if (valInput) valInput.value = ''
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-medium"
+                  >
+                    Tambah
+                  </button>
+                </div>
+              </div>
+
               <div className="flex justify-end space-x-2 pt-2">
                 <button
                   type="button"

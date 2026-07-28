@@ -19,8 +19,11 @@ export const InventoryTab = ({
   itemsPerPage,
   setItemsPerPage,
   handleOpenModal,
-  handleDelete
+  handleDelete,
+  customColumns = [] // Kolom kustom yang otomatis terdeteksi dari produk
 }) => {
+  const totalColSpan = 6 + customColumns.length
+
   return (
     <div className="space-y-6">
       {/* Filter & Search Bar */}
@@ -87,6 +90,12 @@ export const InventoryTab = ({
                 <th className="py-3.5 px-4">Kategori</th>
                 <th className="py-3.5 px-4 text-center">Stok</th>
                 <th className="py-3.5 px-4 text-right">Harga Satuan</th>
+                {/* Render Header Kolom Kustom Otomatis */}
+                {customColumns.map((colName) => (
+                  <th key={colName} className="py-3.5 px-4 text-indigo-700 bg-indigo-50/30">
+                    {colName}
+                  </th>
+                ))}
                 <th className="py-3.5 px-4">Lokasi & Supplier</th>
                 <th className="py-3.5 px-4 sm:px-6 text-right">Aksi</th>
               </tr>
@@ -94,7 +103,7 @@ export const InventoryTab = ({
             <tbody className="divide-y divide-slate-100 text-sm">
               {paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-12 text-center text-slate-400">
+                  <td colSpan={totalColSpan} className="py-12 text-center text-slate-400">
                     <Package className="w-10 h-10 mx-auto mb-2 opacity-40" />
                     <p>Tidak ada produk yang ditemukan.</p>
                   </td>
@@ -125,12 +134,17 @@ export const InventoryTab = ({
                     <td className="py-3.5 px-4 text-right font-medium text-slate-900">
                       Rp {(item.price || 0).toLocaleString('id-ID')}
                     </td>
+                    {/* Render Nilai Kolom Kustom Otomatis */}
+                    {customColumns.map((colName) => (
+                      <td key={colName} className="py-3.5 px-4 text-slate-700 font-medium">
+                        {item.custom_fields?.[colName] || '-'}
+                      </td>
+                    ))}
                     <td className="py-3.5 px-4 text-xs text-slate-600">
                       <div>Rak: <span className="font-medium text-slate-800">{item.location || '-'}</span></div>
                       <div>Supp: <span className="font-medium text-slate-800">{item.supplier || '-'}</span></div>
                     </td>
                     <td className="py-3.5 px-4 sm:px-6 text-right">
-                      {/* Tombol Aksi Edit & Hapus Aktif untuk Setiap Akun */}
                       <div className="flex items-center justify-end space-x-2">
                         <button
                           onClick={() => handleOpenModal(item)}
