@@ -4,7 +4,7 @@ import { itemService } from '../services/itemService'
 import { supabase } from '../services/supabase'
 import { 
   Package, Layers, Plus, AlertCircle, CheckCircle, 
-  X, Download, Upload, TrendingUp, Truck, FileText, Printer, CheckSquare, Camera 
+  X, Download, Upload, TrendingUp, Truck, FileText, Printer, CheckSquare, Camera, Pencil 
 } from 'lucide-react'
 import { OverviewTab } from '../components/dashboard/OverviewTab'
 import { InventoryTab } from '../components/dashboard/InventoryTab'
@@ -27,6 +27,12 @@ export const Dashboard = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   
+  // State untuk Nama Perusahaan & Fitur Edit Inline
+  const [companyName, setCompanyName] = useState('Enterprise Inventory Control')
+  const [isEditingCompany, setIsEditingCompany] = useState(false)
+  const [tempCompanyName, setTempCompanyName] = useState('')
+  const [savingCompany, setSavingCompany] = useState(false)
+
   // State Filter, Pencarian, & Server-Side Pagination
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Semua')
@@ -127,6 +133,21 @@ export const Dashboard = () => {
       const activeUser = user || (await supabase.auth.getUser()).data?.user
       const userId = activeUser?.id
       
+      if (userId) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('company_name')
+          .eq('id', userId)
+          .single()
+
+        if (profileData && profileData.company_name) {
+          setCompanyName(profileData.company_name)
+          setTempCompanyName(profileData.company_name)
+        } else {
+          setTempCompanyName(companyName)
+        }
+      }
+
       const result = await itemService.getItems(
         userId, 
         currentPage, 
@@ -144,6 +165,35 @@ export const Dashboard = () => {
       setError('Gagal memuat data inventori: ' + err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleUpdateCompanyName = async (e) => {
+    e.preventDefault()
+    setSavingCompany(true)
+    setError('')
+    setSuccess('')
+    try {
+      const activeUser = user || (await supabase.auth.getUser()).data?.user
+      if (!activeUser) throw new Error('Pengguna tidak terautentikasi.')
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          company_name: tempCompanyName,
+          updated_at: new Date()
+        })
+        .eq('id', activeUser.id)
+
+      if (updateError) throw updateError
+
+      setCompanyName(tempCompanyName)
+      setIsEditingCompany(false)
+      setSuccess('Nama perusahaan berhasil diperbarui.')
+    } catch (err) {
+      setError('Gagal memperbarui nama perusahaan: ' + err.message)
+    } finally {
+      setSavingCompany(false)
     }
   }
 
@@ -717,7 +767,7 @@ export const Dashboard = () => {
       <body>
         <div class="header">
           <div class="company-info">
-            <h1>PT. Enterprise Inventory Control</h1>
+            <h1>${companyName}</h1>
             <p>Pusat Manajemen Logistik & Pergudangan Terpadu</p>
           </div>
           <div class="report-meta">
@@ -792,7 +842,7 @@ export const Dashboard = () => {
         onChange={handleImportCSV} 
       />
       
-      {/* Header Card (Tombol Transaksi telah dihapus dari sini) */}
+      {/* Header Card dengan Fitur Edit Nama Perusahaan Inline */}
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-800">
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -803,11 +853,59 @@ export const Dashboard = () => {
                 <span>Professional Print Layout Active</span>
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Enterprise Inventory Management
-            </h1>
+
+            {/* Judul / Nama Perusahaan dengan Tombol Edit */}
+            <div className="flex items-center space-x-3">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                {companyName}
+              </h1>
+              {!isEditingCompany && (
+                <button
+                  onClick={() => {
+                    setTempCompanyName(companyName)
+                    setIsEditingCompany(true)
+                  }}
+                  className="p-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 transition-all border border-indigo-500/30"
+                  title="Ubah Nama Perusahaan"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Form Edit Nama Perusahaan Inline */}
+            {isEditingCompany && (
+              <form onSubmit={handleUpdateCompanyName} className="flex items-center space-x-2 pt-2 max-w-md">
+                <input
+                  type="text"
+                  required
+                  value={tempCompanyName}
+                  onChange={(e) => setTempCompanyName(e.target.value)}
+                  placeholder="Nama Perusahaan Baru"
+                  className="flex-1 bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="submit"
+                  disabled={savingCompany}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-medium transition-all shadow-md"
+                >
+                  {savingCompany ? 'Menyimpan...' : 'Simpan'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingCompany(false)
+                    setTempCompanyName(companyName)
+                  }}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-all border border-slate-700"
+                >
+                  Batal
+                </button>
+              </form>
+            )}
+
             <p className="text-slate-300 text-xs sm:text-sm max-w-xl">
-              Sistem terpadu dengan performa tinggi, analitik, scanner barcode kamera, dan paginasi server.
+              Sistem terpadu dengan performa tinggi, analitik dan paginasi server.
             </p>
           </div>
           
@@ -832,13 +930,6 @@ export const Dashboard = () => {
             >
               <Download className="w-4 h-4" />
               <span>CSV</span>
-            </button>
-            <button 
-              onClick={() => handleOpenModal()} 
-              className="w-full md:w-auto inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm shadow-lg shadow-indigo-600/35 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tambah Produk</span>
             </button>
           </div>
         </div>
