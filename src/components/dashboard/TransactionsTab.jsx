@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { Search, Plus, ArrowUpRight, ArrowDownLeft, FileText, Calendar, X } from 'lucide-react'
 
-
 export const TransactionsTab = ({
  transactions = [],
  items = [],
@@ -9,14 +8,13 @@ export const TransactionsTab = ({
 }) => {
  const [searchTerm, setSearchTerm] = useState('')
  const [isModalOpen, setIsModalOpen] = useState(false)
-  // State form transaksi baru
+ 
  const [formData, setFormData] = useState({
    itemId: '',
-   type: 'in', // 'in' (Masuk) atau 'out' (Keluar)
+   type: 'in', 
    quantity: 1,
    notes: ''
  })
-
 
  const handleOpenModal = () => {
    setFormData({
@@ -28,37 +26,29 @@ export const TransactionsTab = ({
    setIsModalOpen(true)
  }
 
-
  const handleSubmit = (e) => {
    e.preventDefault()
    if (!formData.itemId) return
-
-
-   const selectedItem = items.find(i => String(i.id) === String(formData.itemId))
-  
+   
    const newTransaction = {
-     id: Date.now().toString(),
      itemId: formData.itemId,
-     itemTitle: selectedItem ? (selectedItem.title || selectedItem.name || selectedItem.nama) : 'Produk',
      type: formData.type,
      quantity: Number(formData.quantity),
-     notes: formData.notes,
-     date: new Date().toISOString()
+     notes: formData.notes
    }
-
-
+   
    if (onAddTransaction) {
      onAddTransaction(newTransaction)
    }
    setIsModalOpen(false)
  }
 
-
- const filteredTransactions = transactions.filter(tx =>
-   (tx.itemTitle || tx.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-   (tx.notes || tx.catatan || '').toLowerCase().includes(searchTerm.toLowerCase())
- )
-
+ const filteredTransactions = transactions.filter(tx => {
+   const titleText = tx.item_title || tx.itemTitle || tx.title || tx.nama_barang || tx.namaProduk || ''
+   const notesText = tx.notes || tx.catatan || ''
+   return titleText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          notesText.toLowerCase().includes(searchTerm.toLowerCase())
+ })
 
  return (
    <div className="space-y-6">
@@ -86,8 +76,7 @@ export const TransactionsTab = ({
          </div>
        </div>
      </div>
-
-
+     
      {/* Table Transaksi */}
      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
        <div className="overflow-x-auto">
@@ -111,21 +100,28 @@ export const TransactionsTab = ({
                </tr>
              ) : (
                filteredTransactions.map((tx) => {
-                 const isIn = tx.type === 'in' || tx.tipe === 'in' || tx.type === 'masuk'
+                 const rawType = String(tx.type || tx.tipe || tx.status || '').trim().toUpperCase()
+                 const isIn = rawType === 'IN' || rawType === 'MASUK' || rawType === 'TAMBAH' || rawType === 'ADD'
+                 
+                 const dateVal = tx.created_at || tx.date || tx.tanggal || tx.createdAt
+                 const formattedDate = dateVal 
+                   ? new Date(dateVal).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+                   : (tx.tanggal || '-')
+
+                 const titleVal = tx.item_title || tx.itemTitle || tx.title || tx.nama_barang || tx.namaProduk || '-'
+                 const qtyVal = tx.qty || tx.quantity || tx.jumlah || 0
+                 const notesVal = tx.notes || tx.catatan || '-'
+
                  return (
-                   <tr key={tx.id} className="hover:bg-slate-50/60 transition-colors">
+                   <tr key={tx.id || Math.random()} className="hover:bg-slate-50/60 transition-colors">
                      <td className="py-3.5 px-4 sm:px-6 text-xs text-slate-600">
                        <div className="flex items-center space-x-1.5">
                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                         <span>
-                           {tx.date
-                             ? new Date(tx.date).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
-                             : (tx.tanggal || '-')}
-                         </span>
+                         <span>{formattedDate}</span>
                        </div>
                      </td>
                      <td className="py-3.5 px-4 font-semibold text-slate-900">
-                       {tx.itemTitle || tx.title || tx.namaProduk || '-'}
+                       {titleVal}
                      </td>
                      <td className="py-3.5 px-4 text-center">
                        <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold ${
@@ -136,10 +132,10 @@ export const TransactionsTab = ({
                        </span>
                      </td>
                      <td className={`py-3.5 px-4 text-center font-bold ${isIn ? 'text-emerald-600' : 'text-rose-600'}`}>
-                       {isIn ? '+' : '-'}{tx.quantity || tx.jumlah || 0} unit
+                       {isIn ? '+' : '-'}{qtyVal} unit
                      </td>
                      <td className="py-3.5 px-4 text-xs text-slate-600">
-                       {tx.notes || tx.catatan || '-'}
+                       {notesVal}
                      </td>
                    </tr>
                  )
@@ -149,7 +145,6 @@ export const TransactionsTab = ({
          </table>
        </div>
      </div>
-
 
      {/* Modal Form Catat Transaksi Baru */}
      {isModalOpen && (
@@ -164,8 +159,6 @@ export const TransactionsTab = ({
                <X className="w-5 h-5" />
              </button>
            </div>
-
-
            <form onSubmit={handleSubmit} className="p-6 space-y-4">
              <div>
                <label className="block text-xs font-semibold text-slate-600 mb-1">Pilih Produk</label>
@@ -183,8 +176,6 @@ export const TransactionsTab = ({
                  ))}
                </select>
              </div>
-
-
              <div>
                <label className="block text-xs font-semibold text-slate-600 mb-1">Tipe Transaksi</label>
                <div className="grid grid-cols-2 gap-3">
@@ -214,8 +205,6 @@ export const TransactionsTab = ({
                  </button>
                </div>
              </div>
-
-
              <div>
                <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah Unit</label>
                <input
@@ -227,8 +216,6 @@ export const TransactionsTab = ({
                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                />
              </div>
-
-
              <div>
                <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Keterangan</label>
                <textarea
@@ -239,8 +226,6 @@ export const TransactionsTab = ({
                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
                />
              </div>
-
-
              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
                <button
                  type="button"
