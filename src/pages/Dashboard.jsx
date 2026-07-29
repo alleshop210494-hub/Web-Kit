@@ -15,10 +15,10 @@ import ProductModal from '../components/dashboard/modals/ProductModal'
 import { SupplierModal } from '../components/dashboard/modals/SupplierModal'
 import { TransactionModal } from '../components/dashboard/modals/TransactionModal'
 
+
 export const Dashboard = () => {
  const { user } = useAuth()
- 
- const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('overview')
  const [items, setItems] = useState([])
  const [allUserItems, setAllUserItems] = useState([])
  const [transactions, setTransactions] = useState([])
@@ -29,11 +29,12 @@ export const Dashboard = () => {
  const [loading, setLoading] = useState(true)
  const [error, setError] = useState('')
  const [success, setSuccess] = useState('')
-
- const [companyName, setCompanyName] = useState('Enterprise Inventory Control')
+  const [companyName, setCompanyName] = useState('Enterprise Inventory Control')
  const [isEditingCompany, setIsEditingCompany] = useState(false)
  const [tempCompanyName, setTempCompanyName] = useState('')
  const [savingCompany, setSavingCompany] = useState(false)
+
+
  const [searchTerm, setSearchTerm] = useState('')
  const [selectedCategory, setSelectedCategory] = useState('Semua')
  const [stockStatusFilter, setStockStatusFilter] = useState('all')
@@ -41,14 +42,12 @@ export const Dashboard = () => {
  const [currentPage, setCurrentPage] = useState(1)
  const [itemsPerPage, setItemsPerPage] = useState(10)
  const [totalItemsCountServer, setTotalItemsCountServer] = useState(0)
-
- const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
  const [isTransModalOpen, setIsTransModalOpen] = useState(false)
  const fileInputRef = useRef(null)
  const [editingId, setEditingId] = useState(null)
-
- const [namaBarang, setNamaBarang] = useState('')
+  const [namaBarang, setNamaBarang] = useState('')
  const [kategori, setKategori] = useState('')
  const [stok, setStok] = useState('')
  const [harga, setHarga] = useState('')
@@ -57,8 +56,7 @@ export const Dashboard = () => {
  const [supplierName, setSupplierName] = useState('')
  const [productCustomValues, setProductCustomValues] = useState({})
  const [submitting, setSubmitting] = useState(false)
-
- const [supNameInput, setSupNameInput] = useState('')
+  const [supNameInput, setSupNameInput] = useState('')
  const [supPhoneInput, setSupPhoneInput] = useState('')
  const [supAddrInput, setSupAddrInput] = useState('')
  const [transItem, setTransItem] = useState('')
@@ -67,9 +65,11 @@ export const Dashboard = () => {
  const [transNotes, setTransNotes] = useState('')
  const [opnameInputs, setOpnameInputs] = useState({})
 
+
  useEffect(() => {
    fetchData()
  }, [user, currentPage, itemsPerPage, searchTerm, selectedCategory, stockStatusFilter])
+
 
  useEffect(() => {
    let channel = null
@@ -101,19 +101,20 @@ export const Dashboard = () => {
    }
  }, [user])
 
+
  const fetchData = async () => {
    try {
      setLoading(true)
      const activeUser = user || (await supabase.auth.getUser()).data?.user
      const userId = activeUser?.id
-   
+    
      if (userId) {
        const { data: profileData } = await supabase
          .from('profiles')
          .select('company_name')
          .eq('id', userId)
          .single()
-     
+      
        if (profileData && profileData.company_name) {
          setCompanyName(profileData.company_name)
          setTempCompanyName(profileData.company_name)
@@ -121,7 +122,7 @@ export const Dashboard = () => {
          setTempCompanyName(companyName)
        }
      }
-   
+    
      const result = await itemService.getItems(
        userId,
        currentPage,
@@ -132,7 +133,7 @@ export const Dashboard = () => {
      )
      setItems(result.data)
      setTotalItemsCountServer(result.count)
-   
+    
      const allResult = await itemService.getItems(userId, 1, 1000, '', 'Semua', 'all')
      setAllUserItems(allResult.data)
      await fetchTransactions(userId)
@@ -143,31 +144,36 @@ export const Dashboard = () => {
    }
  }
 
+
  const customColumns = useMemo(() => Array.from(
    new Set(allUserItems.flatMap(item => Object.keys(item.custom_fields || {})))
  ), [allUserItems])
 
- const totalItemsCount = allUserItems.length
 
- const totalValuation = useMemo(() =>
+ const totalItemsCount = allUserItems.length
+  const totalValuation = useMemo(() =>
    allUserItems.reduce((acc, item) => acc + ((item.stock || 0) * (item.price || 0)), 0),
    [allUserItems]
  )
+
 
  const lowStockCount = useMemo(() =>
    allUserItems.filter(item => (item.stock || 0) > 0 && (item.stock || 0) < 2).length,
    [allUserItems]
  )
 
+
  const outOfStockCount = useMemo(() =>
    allUserItems.filter(item => (item.stock || 0) === 0).length,
    [allUserItems]
  )
 
+
  const uniqueCategories = useMemo(() =>
    ['Semua', ...new Set(allUserItems.map(item => item.category).filter(Boolean))],
    [allUserItems]
  )
+
 
  const handleUpdateCompanyName = async (e) => {
    e.preventDefault()
@@ -195,6 +201,7 @@ export const Dashboard = () => {
    }
  }
 
+
  const fetchTransactions = async (userId) => {
    try {
      let query = supabase.from('transactions').select('*').order('created_at', { ascending: false })
@@ -209,6 +216,7 @@ export const Dashboard = () => {
      console.error('Gagal mengambil riwayat transaksi:', err.message)
    }
  }
+
 
  const handleOpenModal = (item = null) => {
    if (item) {
@@ -235,11 +243,13 @@ export const Dashboard = () => {
    setIsModalOpen(true)
  }
 
+
  const handleCloseModal = () => {
    setIsModalOpen(false)
    setEditingId(null)
    setProductCustomValues({})
  }
+
 
  const handleSubmit = async (e) => {
    e.preventDefault()
@@ -264,7 +274,7 @@ export const Dashboard = () => {
        setSuccess('Data barang berhasil diperbarui.')
      } else {
        await itemService.createItem(payload)
-     
+      
        await supabase.from('transactions').insert([
          {
            item_title: namaBarang,
@@ -276,7 +286,7 @@ export const Dashboard = () => {
        ])
        setSuccess('Barang baru berhasil ditambahkan ke gudang.')
      }
-   
+    
      await fetchData()
      handleCloseModal()
    } catch (err) {
@@ -286,9 +296,10 @@ export const Dashboard = () => {
    }
  }
 
+
  const handleDelete = async (id) => {
    if (!window.confirm('Apakah Anda yakin ingin menghapus barang ini?')) return
- 
+  
    setError('')
    setSuccess('')
    try {
@@ -300,38 +311,44 @@ export const Dashboard = () => {
    }
  }
 
- const handleAddTransaction = async (newTx) => {
-   const targetItem = allUserItems.find(i => String(i.id) === String(newTx.itemId)) || items.find(i => String(i.id) === String(newTx.itemId))
+
+ const handleAddTransaction = async (e) => {
+   e.preventDefault()
+   if (!transItem || !transQty) return
+   const qtyNum = parseInt(transQty, 10)
+   const targetItem = allUserItems.find(i => String(i.id) === String(transItem)) || items.find(i => String(i.id) === String(transItem))
    if (!targetItem) {
      setError('Produk tidak ditemukan.')
      return
    }
-   const qtyNum = Number(newTx.quantity)
-   const transTypeUpper = newTx.type === 'in' ? 'MASUK' : 'KELUAR'
-   if (transTypeUpper === 'KELUAR' && targetItem.stock < qtyNum) {
+   if (transType === 'KELUAR' && targetItem.stock < qtyNum) {
      setError('Stok tidak mencukupi untuk pengeluaran barang ini!')
      return
    }
-   const newStock = transTypeUpper === 'MASUK' ? targetItem.stock + qtyNum : targetItem.stock - qtyNum
+   const newStock = transType === 'MASUK' ? targetItem.stock + qtyNum : targetItem.stock - qtyNum
    try {
      const activeUser = user || (await supabase.auth.getUser()).data?.user
      await itemService.updateItem(targetItem.id, { ...targetItem, stock: newStock })
-   
+    
      await supabase.from('transactions').insert([
        {
          item_title: targetItem.title,
-         type: transTypeUpper,
+         type: transType,
          qty: qtyNum,
-         notes: newTx.notes || 'Mutasi Manual Gudang',
+         notes: transNotes || 'Mutasi Manual Gudang',
          user_id: activeUser?.id
        }
      ])
      await fetchData()
-     setSuccess(`Transaksi ${transTypeUpper} berhasil dicatat dan disimpan ke database.`)
+     setSuccess(`Transaksi ${transType} berhasil dicatat dan disimpan ke database.`)
+     setIsTransModalOpen(false)
+     setTransQty('')
+     setTransNotes('')
    } catch (err) {
      setError('Gagal memproses transaksi: ' + err.message)
    }
  }
+
 
  const handleProcessOpname = async (item) => {
    const physicalVal = opnameInputs[item.id]
@@ -366,6 +383,7 @@ export const Dashboard = () => {
    }
  }
 
+
  const handleAddSupplier = (e) => {
    e.preventDefault()
    if (!supNameInput) return
@@ -382,6 +400,7 @@ export const Dashboard = () => {
    setIsSupplierModalOpen(false)
    setSuccess('Supplier baru berhasil ditambahkan.')
  }
+
 
  const handleImportCSV = (e) => {
    const file = e.target.files[0]
@@ -421,7 +440,7 @@ export const Dashboard = () => {
        for (let i = 1; i < lines.length; i++) {
          const line = lines[i]
          const cols = line.split(separator).map(col => col.replace(/^"|"$/g, '').trim())
-       
+        
          const titleVal = titleIdx !== -1 ? cols[titleIdx] : ''
          if (!titleVal) continue
          const payload = {
@@ -448,7 +467,9 @@ export const Dashboard = () => {
    reader.readAsText(file)
  }
 
+
  const totalPages = Math.ceil(totalItemsCountServer / itemsPerPage) || 1
+
 
  const handlePrintReport = () => {
    const printWindow = window.open('', '_blank')
@@ -602,15 +623,15 @@ export const Dashboard = () => {
            ${transactions.map((tx, index) => `
              <tr>
                <td class="text-center">${index + 1}</td>
-               <td>${new Date(tx.created_at || tx.date).toLocaleString('id-ID')}</td>
-               <td><b>${tx.item_title || tx.itemTitle || tx.title || '-'}</b></td>
+               <td>${new Date(tx.created_at).toLocaleString('id-ID')}</td>
+               <td><b>${tx.item_title || '-'}</b></td>
                <td class="text-center">
-                 <span style="font-weight: bold; color: ${tx.type === 'MASUK' || tx.type === 'in' ? '#16a34a' : tx.type === 'KELUAR' || tx.type === 'out' ? '#dc2626' : '#2563eb'};">
-                   ${tx.type || tx.tipe}
+                 <span style="font-weight: bold; color: ${tx.type === 'MASUK' ? '#16a34a' : tx.type === 'KELUAR' ? '#dc2626' : '#2563eb'};">
+                   ${tx.type}
                  </span>
                </td>
-               <td class="text-center"><b>${tx.qty || tx.quantity || 0}</b></td>
-               <td>${tx.notes || tx.catatan || '-'}</td>
+               <td class="text-center"><b>${tx.qty}</b></td>
+               <td>${tx.notes || '-'}</td>
              </tr>
            `).join('')}
          </tbody>
@@ -796,6 +817,7 @@ export const Dashboard = () => {
    printWindow.document.close()
  }
 
+
  const handleExportCSV = () => {
    let headers = ['ID', 'SKU', 'Nama Barang', 'Kategori', 'Stok', 'Harga Satuan (Rp)', ...customColumns, 'Lokasi Rak', 'Supplier']
    let csvRows = [headers.join(';')]
@@ -824,6 +846,7 @@ export const Dashboard = () => {
    setSuccess('File laporan CSV berhasil diunduh.')
  }
 
+
  return (
    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 pb-16">
      <input
@@ -833,7 +856,7 @@ export const Dashboard = () => {
        style={{ display: 'none' }}
        onChange={handleImportCSV}
      />
-   
+    
      <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-800">
        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -844,7 +867,7 @@ export const Dashboard = () => {
                <span>Professional Print Layout Active</span>
              </span>
            </div>
-         
+          
            <div className="flex items-center space-x-3">
              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                {companyName}
@@ -862,7 +885,7 @@ export const Dashboard = () => {
                </button>
              )}
            </div>
-         
+          
            {isEditingCompany && (
              <form onSubmit={handleUpdateCompanyName} className="flex items-center space-x-2 pt-2 max-w-md">
                <input
@@ -896,7 +919,7 @@ export const Dashboard = () => {
              Sistem terpadu dengan performa tinggi, analitik dan paginasi server.
            </p>
          </div>
-       
+        
          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto pt-2 md:pt-0">
            <button
              onClick={() => fileInputRef.current?.click()}
@@ -922,6 +945,8 @@ export const Dashboard = () => {
          </div>
        </div>
      </div>
+
+
      {error && (
        <div className="flex items-center justify-between bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm">
          <div className="flex items-center space-x-2">
@@ -944,6 +969,8 @@ export const Dashboard = () => {
          </button>
        </div>
      )}
+
+
      <div className="flex space-x-2 border-b border-slate-200 overflow-x-auto no-scrollbar">
        <button
          onClick={() => setActiveTab('overview')}
@@ -981,6 +1008,8 @@ export const Dashboard = () => {
          <span>Daftar Supplier</span>
        </button>
      </div>
+
+
      {activeTab === 'overview' && (
        <OverviewTab
          items={allUserItems}
@@ -1027,8 +1056,6 @@ export const Dashboard = () => {
      {activeTab === 'transactions' && (
        <TransactionsTab
          transactions={transactions}
-         items={allUserItems}
-         onAddTransaction={handleAddTransaction}
        />
      )}
      {activeTab === 'suppliers' && (
@@ -1037,6 +1064,8 @@ export const Dashboard = () => {
          setIsSupplierModalOpen={setIsSupplierModalOpen}
        />
      )}
+
+
      <ProductModal
        isModalOpen={isModalOpen}
        handleCloseModal={handleCloseModal}
@@ -1061,6 +1090,8 @@ export const Dashboard = () => {
        productCustomValues={productCustomValues}
        setProductCustomValues={setProductCustomValues}
      />
+
+
      <SupplierModal
        isSupplierModalOpen={isSupplierModalOpen}
        setIsSupplierModalOpen={setIsSupplierModalOpen}
@@ -1072,6 +1103,8 @@ export const Dashboard = () => {
        supAddrInput={supAddrInput}
        setSupAddrInput={setSupAddrInput}
      />
+
+
      <TransactionModal
        isTransModalOpen={isTransModalOpen}
        setIsTransModalOpen={setIsTransModalOpen}
@@ -1089,4 +1122,6 @@ export const Dashboard = () => {
    </div>
  )
 }
+
+
 export default Dashboard
