@@ -113,7 +113,7 @@ export const Dashboard = () => {
          .from('profiles')
          .select('company_name')
          .eq('id', userId)
-         .single()
+         .maybeSingle()
      
        if (profileData && profileData.company_name) {
          setCompanyName(profileData.company_name)
@@ -178,13 +178,16 @@ export const Dashboard = () => {
    try {
      const activeUser = user || (await supabase.auth.getUser()).data?.user
      if (!activeUser) throw new Error('Pengguna tidak terautentikasi.')
+     
+     // Menggunakan upsert agar otomatis membuat row jika belum ada atau update jika sudah ada
      const { error: updateError } = await supabase
        .from('profiles')
-       .update({
+       .upsert({
+         id: activeUser.id,
          company_name: tempCompanyName,
          updated_at: new Date()
        })
-       .eq('id', activeUser.id)
+       
      if (updateError) throw updateError
      setCompanyName(tempCompanyName)
      setIsEditingCompany(false)
